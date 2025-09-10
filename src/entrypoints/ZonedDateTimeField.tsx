@@ -52,6 +52,9 @@ export const ZonedDateTimeField = ({
     disabled,
     setFieldValue,
     ui: { locale: userPreferredLocale },
+    site: {
+      attributes: { timezone: userPreferredTimeZone },
+    },
   } = ctx;
 
   // Parse field value (IXDTF string) into internal state on mount.
@@ -74,9 +77,68 @@ export const ZonedDateTimeField = ({
   // Time zone dropdown. Show current offset next to each zone for clarity.
   const timeZones = useMemo(() => getSupportedTimeZones(), []);
   const now = useMemo(() => new Date(), []);
+
+  // Favorites/suggested group pinned at the top:
+  // - UTC
+  // - Browser time zone
+  // - Site default time zone (from DatoCMS project)
+  const browserTimeZone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    []
+  );
+  const suggestedLabel = "Suggested";
+  const suggestedTimeZones = useMemo(() => {
+    const arr = ["UTC", browserTimeZone, userPreferredTimeZone].filter(
+      (v): v is string => !!v
+    );
+    return Array.from(new Set(arr));
+  }, [browserTimeZone, userPreferredTimeZone]);
+
+  // Group IANA zones by top-level region (e.g., Europe, America, Asia) and sort
+  const groupForTimeZone = (tz: string): string => {
+    if (suggestedTimeZones.includes(tz)) return suggestedLabel;
+    if (tz === "UTC" || tz === "GMT" || tz.startsWith("Etc/")) return "UTC";
+    const first = tz.split("/")[0];
+    return first || "Other";
+  };
+
+  const sortedTimeZones = useMemo(() => {
+    // Build list starting with suggestions, then append the remaining time zones
+    const set = new Set(suggestedTimeZones);
+    const list = [
+      ...suggestedTimeZones,
+      ...timeZones.filter((tz) => !set.has(tz)),
+    ];
+    const offsetCache = new Map<string, number>();
+    const getOffset = (tz: string) => {
+      if (!offsetCache.has(tz)) {
+        offsetCache.set(tz, getTimeZoneOffsetMinutes(tz, now));
+      }
+      return offsetCache.get(tz)!;
+    };
+    list.sort((a, b) => {
+      const ga = groupForTimeZone(a);
+      const gb = groupForTimeZone(b);
+      if (ga !== gb) {
+        if (ga === suggestedLabel) return -1;
+        if (gb === suggestedLabel) return 1;
+        return ga.localeCompare(gb);
+      }
+      const oa = getOffset(a);
+      const ob = getOffset(b);
+      if (oa !== ob) return oa - ob; // earliest (lowest offset) first
+      return a.localeCompare(b);
+    });
+    return list;
+  }, [timeZones, now, suggestedTimeZones]);
   const getOptionLabel = (tz: string): string => {
     const offsetMin = getTimeZoneOffsetMinutes(tz, now);
-    return `${tz} (${formatUtcOffset(offsetMin)})`;
+    const offset = formatUtcOffset(offsetMin);
+    if (tz === "UTC") return "UTC";
+    if (tz === browserTimeZone) return `Browser time zone: ${tz} (${offset})`;
+    if (tz === userPreferredTimeZone)
+      return `Site time zone: ${tz} (${offset})`;
+    return `${tz} (${offset})`;
   };
 
   // DateTimePicker value: Luxon DateTime in the selected zone
@@ -122,16 +184,13 @@ export const ZonedDateTimeField = ({
             />
             <Autocomplete<string, false, false, false>
               id="zdt-tz"
-              options={[...timeZones] as string[]}
+              options={sortedTimeZones as string[]}
+              groupBy={groupForTimeZone}
               value={zonedDateTime.timeZone ?? null}
               onChange={handleTzChange}
               getOptionLabel={getOptionLabel}
               renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  placeholder="Select time zone"
-                />
+                <TextField {...params} size="small" placeholder="UTC" />
               )}
               disabled={disabled}
               fullWidth
@@ -143,7 +202,7 @@ export const ZonedDateTimeField = ({
       <h4>Debug</h4>
       <ul>
         <li>Internal state: {JSON.stringify(zonedDateTime)}</li>
-        <li>Saved value: {ixdtfString}</li>
+        <li>DatoCMS field value: {ixdtfString}</li>
       </ul>
     </Canvas>
   );
