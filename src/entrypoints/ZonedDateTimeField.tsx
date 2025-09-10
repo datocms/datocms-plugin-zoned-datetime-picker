@@ -9,6 +9,8 @@ import { AdapterLuxon } from "@mui/x-date-pickers/AdapterLuxon";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
 import { TextField, Autocomplete, Stack } from "@mui/material";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import zoneTabRaw from "../data/zone.tab?raw";
 
 import { DateTime } from "luxon";
 
@@ -34,6 +36,14 @@ export type ZonedValue = {
   timeZone?: string | null; // IANA TZ, e.g. Europe/Rome
 };
 
+type ZoneOption = {
+  tz: string;
+  group: string;
+  label: string;
+  offsetMin: number;
+  searchHay: string;
+};
+
 function getSupportedTimeZones(): readonly string[] {
   // Assume Intl.supportedValuesOf exists in the environment per project setup
   const intlWithSupport = Intl as typeof Intl & {
@@ -55,6 +65,8 @@ export const ZonedDateTimeField = ({
     site: {
       attributes: { timezone: userPreferredTimeZone },
     },
+    theme: { primaryColor, accentColor, lightColor, darkColor },
+    setHeight,
   } = ctx;
 
   // Parse field value (IXDTF string) into internal state on mount.
@@ -74,6 +86,34 @@ export const ZonedDateTimeField = ({
     setFieldValue(fieldPath, ixdtfString);
   }, [ixdtfString, setFieldValue, fieldPath]);
 
+  // Map DatoCMS theme colors into MUI theme
+  const muiTheme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          primary: { main: primaryColor },
+          secondary: { main: accentColor, light: lightColor, dark: darkColor },
+        },
+        components: {
+          MuiAutocomplete: {
+            styleOverrides: {
+              option: ({ theme }) => ({
+                '&[aria-selected="true"]': {
+                  backgroundColor: `${theme.palette.primary.main} !important`,
+                  color: `${theme.palette.primary.contrastText} !important`,
+                },
+                "&:hover": {
+                  backgroundColor: `${theme.palette.secondary.light} !important`,
+                  color: `${theme.palette.secondary.dark} !important`,
+                },
+              }),
+            },
+          },
+        },
+      }),
+    [primaryColor, accentColor]
+  );
+
   // Time zone dropdown. Show current offset next to each zone for clarity.
   const timeZones = useMemo(() => getSupportedTimeZones(), []);
   const now = useMemo(() => new Date(), []);
@@ -86,9 +126,66 @@ export const ZonedDateTimeField = ({
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     []
   );
-  const suggestedLabel = "Suggested";
+  // Localized strings for UI labels
+  const i18n = {
+    en: {
+      suggested: "Suggested",
+      browser: "Your browser",
+      site: "This project",
+      dateTime: "Date & time",
+      timeZone: "Time zone",
+    },
+    it: {
+      suggested: "Suggeriti",
+      browser: "Il tuo browser",
+      site: "Questo progetto",
+      dateTime: "Data e ora",
+      timeZone: "Fuso orario",
+    },
+    fr: {
+      suggested: "Suggérés",
+      browser: "Votre navigateur",
+      site: "Ce projet",
+      dateTime: "Date et heure",
+      timeZone: "Fuseau horaire",
+    },
+    de: {
+      suggested: "Vorgeschlagen",
+      browser: "Ihr Browser",
+      site: "Dieses Projekt",
+      dateTime: "Datum & Uhrzeit",
+      timeZone: "Zeitzone",
+    },
+    pt: {
+      suggested: "Sugeridos",
+      browser: "Seu navegador",
+      site: "Este projeto",
+      dateTime: "Data e hora",
+      timeZone: "Fuso horário",
+    },
+    cs: {
+      suggested: "Doporučené",
+      browser: "Váš prohlížeč",
+      site: "Tento projekt",
+      dateTime: "Datum a čas",
+      timeZone: "Časové pásmo",
+    },
+    nl: {
+      suggested: "Aanbevolen",
+      browser: "Uw browser",
+      site: "Dit project",
+      dateTime: "Datum en tijd",
+      timeZone: "Tijdzone",
+    },
+  } as const;
+  const localeKey = (userPreferredLocale || "en")
+    .split("-")[0]
+    .toLowerCase() as keyof typeof i18n;
+  const labels = i18n[localeKey] || i18n.en;
+  const suggestedLabel = labels.suggested;
   const suggestedTimeZones = useMemo(() => {
-    const arr = ["UTC", browserTimeZone, userPreferredTimeZone].filter(
+    // Fixed order: UTC, This project (site), Your browser
+    const arr = ["UTC", userPreferredTimeZone, browserTimeZone].filter(
       (v): v is string => !!v
     );
     return Array.from(new Set(arr));
@@ -96,19 +193,77 @@ export const ZonedDateTimeField = ({
 
   // Group IANA zones by top-level region (e.g., Europe, America, Asia) and sort
   const groupForTimeZone = (tz: string): string => {
-    if (suggestedTimeZones.includes(tz)) return suggestedLabel;
     if (tz === "UTC" || tz === "GMT" || tz.startsWith("Etc/")) return "UTC";
     const first = tz.split("/")[0];
     return first || "Other";
   };
+  // Localized time zone display name via Intl.DateTimeFormat + timeZoneName
+  const getZoneLongName = (tz: string): string | null => {
+    try {
+      const parts = new Intl.DateTimeFormat(userPreferredLocale, {
+        timeZone: tz,
+        timeZoneName: "longGeneric",
+      }).formatToParts(now);
+      const namePart = parts.find((p) => p.type === "timeZoneName");
+      return namePart?.value ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const makeLabel = (
+    tz: string,
+    kind: "suggested" | "regular",
+    offsetMin: number
+  ) => {
+    const offset = formatUtcOffset(offsetMin);
+    const localized = getZoneLongName(tz) ?? tz;
+    const cc = ZONE_TO_COUNTRY.get(tz) ?? null;
+    const flag = cc ? `${toFlagEmoji(cc)} ` : "";
+    const base = `${tz} (${offset}${localized && localized !== tz ? `, ${localized}` : ""})`;
+    if (tz === "UTC") return `🌍 ${base}`;
+    if (kind === "suggested") {
+      if (tz === browserTimeZone) return `${flag}${labels.browser}: ${base}`;
+      if (tz === userPreferredTimeZone) return `${flag}${labels.site}: ${base}`;
+      return `${flag}${base}`;
+    }
+    return `${flag}${base}`;
+  };
 
-  const sortedTimeZones = useMemo(() => {
-    // Build list starting with suggestions, then append the remaining time zones
-    const set = new Set(suggestedTimeZones);
-    const list = [
-      ...suggestedTimeZones,
-      ...timeZones.filter((tz) => !set.has(tz)),
-    ];
+  const normalizeForSearch = (s: string): string => {
+    try {
+      return s
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    } catch {
+      return s
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    }
+  };
+  const makeSearchHay = (tz: string, label: string): string =>
+    normalizeForSearch(`${tz} ${label}`);
+
+  // Build a TZ -> country code map from official IANA zone.tab
+  const ZONE_TO_COUNTRY = useMemo(() => {
+    const map = new Map<string, string>();
+    const raw = zoneTabRaw || "";
+    const lines = raw.split(/\r?\n/);
+    for (const line of lines) {
+      if (!line || line.startsWith("#")) continue;
+      const cols = line.split("\t");
+      if (cols.length < 3) continue;
+      const cc = cols[0]?.trim();
+      const tz = cols[2]?.trim();
+      if (cc && tz && !map.has(tz)) map.set(tz, cc.toUpperCase());
+    }
+    return map;
+  }, []);
+
+  const options: ZoneOption[] = useMemo(() => {
     const offsetCache = new Map<string, number>();
     const getOffset = (tz: string) => {
       if (!offsetCache.has(tz)) {
@@ -116,30 +271,55 @@ export const ZonedDateTimeField = ({
       }
       return offsetCache.get(tz)!;
     };
-    list.sort((a, b) => {
-      const ga = groupForTimeZone(a);
-      const gb = groupForTimeZone(b);
-      if (ga !== gb) {
-        if (ga === suggestedLabel) return -1;
-        if (gb === suggestedLabel) return 1;
-        return ga.localeCompare(gb);
-      }
-      const oa = getOffset(a);
-      const ob = getOffset(b);
-      if (oa !== ob) return oa - ob; // earliest (lowest offset) first
-      return a.localeCompare(b);
+    // Suggested copies first
+    const suggested: ZoneOption[] = suggestedTimeZones.map((tz) => {
+      const offsetMin = getOffset(tz);
+      const label = makeLabel(tz, "suggested", offsetMin);
+      return {
+        tz,
+        group: suggestedLabel,
+        label,
+        offsetMin,
+        searchHay: makeSearchHay(tz, label),
+      };
     });
-    return list;
-  }, [timeZones, now, suggestedTimeZones]);
-  const getOptionLabel = (tz: string): string => {
-    const offsetMin = getTimeZoneOffsetMinutes(tz, now);
-    const offset = formatUtcOffset(offsetMin);
-    if (tz === "UTC") return "UTC";
-    if (tz === browserTimeZone) return `Browser time zone: ${tz} (${offset})`;
-    if (tz === userPreferredTimeZone)
-      return `Site time zone: ${tz} (${offset})`;
-    return `${tz} (${offset})`;
-  };
+    // Keep fixed order: UTC, This project (site), Your browser
+    const priorityOf = (tz: string) =>
+      tz === "UTC"
+        ? 0
+        : tz === userPreferredTimeZone
+          ? 1
+          : tz === browserTimeZone
+            ? 2
+            : 3;
+    suggested.sort((a, b) => priorityOf(a.tz) - priorityOf(b.tz));
+
+    // Full list including zones that are also in suggested
+    const regular: ZoneOption[] = timeZones.map((tz) => {
+      const offsetMin = getOffset(tz);
+      const label = makeLabel(tz, "regular", offsetMin);
+      return {
+        tz,
+        group: groupForTimeZone(tz),
+        label,
+        offsetMin,
+        searchHay: makeSearchHay(tz, label),
+      };
+    });
+    regular.sort((a, b) => {
+      if (a.group !== b.group) return a.group.localeCompare(b.group);
+      return a.offsetMin - b.offsetMin || a.label.localeCompare(b.label);
+    });
+
+    return [...suggested, ...regular];
+  }, [
+    timeZones,
+    now,
+    suggestedTimeZones,
+    browserTimeZone,
+    userPreferredTimeZone,
+    userPreferredLocale,
+  ]);
 
   // DateTimePicker value: Luxon DateTime in the selected zone
   const dt: DateTime | null = useMemo(() => {
@@ -162,42 +342,82 @@ export const ZonedDateTimeField = ({
     setZonedDateTime((prev) => ({ ...prev, timeZone: newValue }));
   };
 
+  setHeight(500);
+
   return (
-    <Canvas ctx={ctx}>
-      <LocalizationProvider
-        dateAdapter={AdapterLuxon}
-        adapterLocale={userPreferredLocale}
-      >
-        <FieldGroup>
-          <Stack direction="row" spacing={1}>
-            <DateTimePicker
-              value={dt}
-              onChange={handleDateChange}
-              disabled={disabled}
-              timezone={zonedDateTime.timeZone ?? "system"}
-              slotProps={{ textField: { id: "zdt-picker", size: "small" } }}
-              viewRenderers={{
-                hours: renderTimeViewClock,
-                minutes: renderTimeViewClock,
-                seconds: renderTimeViewClock,
-              }}
-            />
-            <Autocomplete<string, false, false, false>
-              id="zdt-tz"
-              options={sortedTimeZones as string[]}
-              groupBy={groupForTimeZone}
-              value={zonedDateTime.timeZone ?? null}
-              onChange={handleTzChange}
-              getOptionLabel={getOptionLabel}
-              renderInput={(params) => (
-                <TextField {...params} size="small" placeholder="UTC" />
-              )}
-              disabled={disabled}
-              fullWidth
-            />
-          </Stack>
-        </FieldGroup>
-      </LocalizationProvider>
+    <Canvas ctx={ctx} noAutoResizer={true}>
+      <ThemeProvider theme={muiTheme}>
+        <LocalizationProvider
+          dateAdapter={AdapterLuxon}
+          adapterLocale={userPreferredLocale}
+        >
+          <FieldGroup>
+            <Stack direction="row" spacing={1}>
+              <DateTimePicker
+                value={dt}
+                onChange={handleDateChange}
+                disabled={disabled}
+                timezone={zonedDateTime.timeZone ?? "system"}
+                slotProps={{
+                  textField: {
+                    id: "zdt-picker",
+                    size: "small",
+                    placeholder: labels.dateTime,
+                  },
+                }}
+                viewRenderers={{
+                  hours: renderTimeViewClock,
+                  minutes: renderTimeViewClock,
+                  seconds: renderTimeViewClock,
+                }}
+                sx={{ width: 310 }}
+              />
+              <Autocomplete<ZoneOption, false, false, false>
+                id="zdt-tz"
+                options={options}
+                groupBy={(opt) => opt.group}
+                value={
+                  options.find(
+                    (o) => o.tz === (zonedDateTime.timeZone ?? "")
+                  ) ?? null
+                }
+                isOptionEqualToValue={(opt, val) => opt.tz === val.tz}
+                filterOptions={(opts, state) => {
+                  const q = (state.inputValue ?? "").trim();
+                  if (!q) return opts;
+                  const norm = (q.normalize ? q.normalize("NFD") : q)
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, " ")
+                    .trim();
+                  if (!norm) return opts;
+                  const tokens = norm.split(/\s+/).filter(Boolean);
+                  return opts.filter((o) =>
+                    tokens.every((t) => o.searchHay.includes(t))
+                  );
+                }}
+                onChange={(_, newOption) =>
+                  handleTzChange(_, newOption?.tz ?? null)
+                }
+                getOptionLabel={(opt) => opt.label}
+                slotProps={{
+                  listbox: { sx: { maxHeight: 200, overflowY: "auto" } },
+                }}
+                // Styling handled via theme to avoid flicker between states
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder={labels.timeZone}
+                  />
+                )}
+                disabled={disabled}
+                fullWidth
+              />
+            </Stack>
+          </FieldGroup>
+        </LocalizationProvider>
+      </ThemeProvider>
 
       <h4>Debug</h4>
       <ul>
@@ -288,3 +508,15 @@ function formatUtcOffset(totalMinutes: number): string {
   const mm = minutes ? `:${minutes.toString().padStart(2, "0")}` : "";
   return `UTC${sign}${hours}${mm}`;
 }
+
+// --- Country flag support (best-effort without large datasets) ---
+// Converts ISO 3166-1 alpha-2 country code to a unicode flag
+function toFlagEmoji(countryCode: string): string {
+  if (!countryCode || countryCode.length !== 2) return "";
+  const cc = countryCode.toUpperCase();
+  const A = 0x1f1e6;
+  const codePoint = (ch: string) => A + (ch.charCodeAt(0) - 65);
+  return String.fromCodePoint(codePoint(cc[0]), codePoint(cc[1]));
+}
+
+// Country code lookup now comes from official IANA zone.tab, parsed above.
