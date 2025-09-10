@@ -10,7 +10,11 @@ import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
 import { TextField, Autocomplete, Stack } from "@mui/material";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import zoneTabRaw from "../data/zone.tab?raw";
+import { getTimezoneLabels } from "../i18n/timezoneLabels";
+import { loadZoneToCountryMap } from "../utils/zoneTab";
+import { toFlagEmoji } from "../utils/flags";
+import { getZoneLongName, utcOffsetStringForZone, parseIxdtf, formatToIxdtf, type ZonedValue } from "../utils/datetime";
+import { normalizeForSearch, makeSearchHaystack } from "../utils/search";
 
 import { DateTime } from "luxon";
 
@@ -30,11 +34,6 @@ import { DateTime } from "luxon";
  *   derived on save using Luxon with the zone applied.
  * - We only support IXDTF strings. No legacy JSON format.
  */
-
-export type ZonedValue = {
-  dateTime?: string | null; // ISO local string without offset, e.g. 2025-09-08T15:30:00
-  timeZone?: string | null; // IANA TZ, e.g. Europe/Rome
-};
 
 type ZoneOption = {
   tz: string;
@@ -127,61 +126,7 @@ export const ZonedDateTimeField = ({
     []
   );
   // Localized strings for UI labels
-  const i18n = {
-    en: {
-      suggested: "Suggested",
-      browser: "Your browser",
-      site: "This project",
-      dateTime: "Date & time",
-      timeZone: "Time zone",
-    },
-    it: {
-      suggested: "Suggeriti",
-      browser: "Il tuo browser",
-      site: "Questo progetto",
-      dateTime: "Data e ora",
-      timeZone: "Fuso orario",
-    },
-    fr: {
-      suggested: "Suggérés",
-      browser: "Votre navigateur",
-      site: "Ce projet",
-      dateTime: "Date et heure",
-      timeZone: "Fuseau horaire",
-    },
-    de: {
-      suggested: "Vorgeschlagen",
-      browser: "Ihr Browser",
-      site: "Dieses Projekt",
-      dateTime: "Datum & Uhrzeit",
-      timeZone: "Zeitzone",
-    },
-    pt: {
-      suggested: "Sugeridos",
-      browser: "Seu navegador",
-      site: "Este projeto",
-      dateTime: "Data e hora",
-      timeZone: "Fuso horário",
-    },
-    cs: {
-      suggested: "Doporučené",
-      browser: "Váš prohlížeč",
-      site: "Tento projekt",
-      dateTime: "Datum a čas",
-      timeZone: "Časové pásmo",
-    },
-    nl: {
-      suggested: "Aanbevolen",
-      browser: "Uw browser",
-      site: "Dit project",
-      dateTime: "Datum en tijd",
-      timeZone: "Tijdzone",
-    },
-  } as const;
-  const localeKey = (userPreferredLocale || "en")
-    .split("-")[0]
-    .toLowerCase() as keyof typeof i18n;
-  const labels = i18n[localeKey] || i18n.en;
+  const labels = getTimezoneLabels(userPreferredLocale);
   const suggestedLabel = labels.suggested;
   const suggestedTimeZones = useMemo(() => {
     // Fixed order: UTC, This project (site), Your browser
@@ -197,27 +142,16 @@ export const ZonedDateTimeField = ({
     const first = tz.split("/")[0];
     return first || "Other";
   };
-  // Localized time zone display name via Intl.DateTimeFormat + timeZoneName
-  const getZoneLongName = (tz: string): string | null => {
-    try {
-      const parts = new Intl.DateTimeFormat(userPreferredLocale, {
-        timeZone: tz,
-        timeZoneName: "longGeneric",
-      }).formatToParts(now);
-      const namePart = parts.find((p) => p.type === "timeZoneName");
-      return namePart?.value ?? null;
-    } catch {
-      return null;
-    }
-  };
+  // Pre-load TZ -> country code map from official zone.tab
+  const zoneToCountry = useMemo(() => loadZoneToCountryMap(), []);
   const makeLabel = (
     tz: string,
     kind: "suggested" | "regular",
     offsetMin: number
   ) => {
-    const offset = formatUtcOffset(offsetMin);
-    const localized = getZoneLongName(tz) ?? tz;
-    const cc = ZONE_TO_COUNTRY.get(tz) ?? null;
+    const offset = utcOffsetStringForZone(tz, now);
+    const localized = getZoneLongName(userPreferredLocale, tz, now) ?? tz;
+    const cc = zoneToCountry.get(tz) ?? null;
     const flag = cc ? `${toFlagEmoji(cc)} ` : "";
     const base = `${tz} (${offset}${localized && localized !== tz ? `, ${localized}` : ""})`;
     if (tz === "UTC") return `🌍 ${base}`;
@@ -229,45 +163,18 @@ export const ZonedDateTimeField = ({
     return `${flag}${base}`;
   };
 
-  const normalizeForSearch = (s: string): string => {
-    try {
-      return s
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, " ")
-        .trim();
-    } catch {
-      return s
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, " ")
-        .trim();
-    }
-  };
-  const makeSearchHay = (tz: string, label: string): string =>
-    normalizeForSearch(`${tz} ${label}`);
+  const makeSearchHay = (tz: string, label: string): string => makeSearchHaystack(tz, label);
 
   // Build a TZ -> country code map from official IANA zone.tab
-  const ZONE_TO_COUNTRY = useMemo(() => {
-    const map = new Map<string, string>();
-    const raw = zoneTabRaw || "";
-    const lines = raw.split(/\r?\n/);
-    for (const line of lines) {
-      if (!line || line.startsWith("#")) continue;
-      const cols = line.split("\t");
-      if (cols.length < 3) continue;
-      const cc = cols[0]?.trim();
-      const tz = cols[2]?.trim();
-      if (cc && tz && !map.has(tz)) map.set(tz, cc.toUpperCase());
-    }
-    return map;
-  }, []);
+  // (zoneToCountry map is built above)
 
   const options: ZoneOption[] = useMemo(() => {
     const offsetCache = new Map<string, number>();
     const getOffset = (tz: string) => {
       if (!offsetCache.has(tz)) {
-        offsetCache.set(tz, getTimeZoneOffsetMinutes(tz, now));
+        // Use Luxon to read the current offset for the given zone
+        const offset = DateTime.fromJSDate(now, { zone: tz }).offset;
+        offsetCache.set(tz, offset);
       }
       return offsetCache.get(tz)!;
     };
@@ -322,7 +229,7 @@ export const ZonedDateTimeField = ({
   ]);
 
   // DateTimePicker value: Luxon DateTime in the selected zone
-  const dt: DateTime | null = useMemo(() => {
+  const selectedDateTime: DateTime | null = useMemo(() => {
     if (!zonedDateTime?.dateTime) return null;
     const zone = zonedDateTime.timeZone ?? "system";
     const parsed = DateTime.fromISO(zonedDateTime.dateTime, { zone });
@@ -354,7 +261,7 @@ export const ZonedDateTimeField = ({
           <FieldGroup>
             <Stack direction="row" spacing={1}>
               <DateTimePicker
-                value={dt}
+                value={selectedDateTime}
                 onChange={handleDateChange}
                 disabled={disabled}
                 timezone={zonedDateTime.timeZone ?? "system"}
@@ -385,16 +292,10 @@ export const ZonedDateTimeField = ({
                 filterOptions={(opts, state) => {
                   const q = (state.inputValue ?? "").trim();
                   if (!q) return opts;
-                  const norm = (q.normalize ? q.normalize("NFD") : q)
-                    .replace(/[\u0300-\u036f]/g, "")
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, " ")
-                    .trim();
+                  const norm = normalizeForSearch(q);
                   if (!norm) return opts;
                   const tokens = norm.split(/\s+/).filter(Boolean);
-                  return opts.filter((o) =>
-                    tokens.every((t) => o.searchHay.includes(t))
-                  );
+                  return opts.filter((o) => tokens.every((t) => o.searchHay.includes(t)));
                 }}
                 onChange={(_, newOption) =>
                   handleTzChange(_, newOption?.tz ?? null)
@@ -427,96 +328,3 @@ export const ZonedDateTimeField = ({
     </Canvas>
   );
 };
-
-/**
- * Parse an IXDTF string into our internal state.
- * We only support strings with an IANA zone in brackets, e.g.:
- *   2025-09-08T15:30:00+02:00[Europe/Rome]
- * The numeric offset is ignored on parse (it is derived again on save).
- */
-function parseIxdtf(input: string): ZonedValue {
-  const trimmed = (input ?? "").trim();
-  if (!trimmed) return { dateTime: null, timeZone: null };
-  // Extract [Zone]
-  const zoneMatch = trimmed.match(/\[([^\]]+)\]\s*$/);
-  const timeZone = zoneMatch ? zoneMatch[1] : null;
-  const withoutZone = zoneMatch
-    ? trimmed.slice(0, zoneMatch.index).trim()
-    : trimmed;
-  // Extract local date-time portion (strip any offset)
-  const localMatch = withoutZone.match(
-    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)/
-  );
-  const dateTime = localMatch ? ensureSeconds(localMatch[1]) : null;
-  return { dateTime, timeZone };
-}
-
-// Ensure seconds are present (we always store HH:mm:ss for clarity)
-function ensureSeconds(dt: string): string {
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dt)) return dt + ":00";
-  return dt;
-}
-
-/**
- * Format our state to an IXDTF string for storage.
- * We apply the IANA zone to the local date-time and ask Luxon to include the
- * numeric offset for that instant. Then we append the zone in brackets.
- */
-function formatToIxdtf(value: ZonedValue): string | null {
-  const { dateTime, timeZone } = value;
-  if (!dateTime || !timeZone) return null;
-  const dt = DateTime.fromISO(dateTime, { zone: timeZone });
-  if (!dt.isValid) return null;
-  const base = dt.toISO({ suppressMilliseconds: true, includeOffset: true });
-  return `${base}[${timeZone}]`;
-}
-
-function getTimeZoneOffsetMinutes(timeZone: string, at: Date): number {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-  const parts = dtf.formatToParts(at);
-  const map = Object.fromEntries(parts.map((p) => [p.type, p.value])) as Record<
-    string,
-    string
-  >;
-  const year = Number(map.year);
-  const month = Number(map.month);
-  const day = Number(map.day);
-  const hour = Number(map.hour);
-  const minute = Number(map.minute);
-  const second = Number(map.second);
-  const inTz = Date.UTC(year, month - 1, day, hour, minute, second);
-  const utc = at.getTime();
-  const offsetMs = inTz - utc; // positive if TZ is ahead of UTC
-  return Math.round(offsetMs / 60000);
-}
-
-function formatUtcOffset(totalMinutes: number): string {
-  if (totalMinutes === 0) return "UTC+0";
-  const sign = totalMinutes >= 0 ? "+" : "-";
-  const abs = Math.abs(totalMinutes);
-  const hours = Math.floor(abs / 60);
-  const minutes = abs % 60;
-  const mm = minutes ? `:${minutes.toString().padStart(2, "0")}` : "";
-  return `UTC${sign}${hours}${mm}`;
-}
-
-// --- Country flag support (best-effort without large datasets) ---
-// Converts ISO 3166-1 alpha-2 country code to a unicode flag
-function toFlagEmoji(countryCode: string): string {
-  if (!countryCode || countryCode.length !== 2) return "";
-  const cc = countryCode.toUpperCase();
-  const A = 0x1f1e6;
-  const codePoint = (ch: string) => A + (ch.charCodeAt(0) - 65);
-  return String.fromCodePoint(codePoint(cc[0]), codePoint(cc[1]));
-}
-
-// Country code lookup now comes from official IANA zone.tab, parsed above.
