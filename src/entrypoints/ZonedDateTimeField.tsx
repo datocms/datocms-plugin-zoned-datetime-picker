@@ -1,56 +1,48 @@
 import { useEffect, useMemo, useState } from "react";
 import type { RenderFieldExtensionCtx } from "datocms-plugin-sdk";
 import { Canvas, FieldGroup } from "datocms-react-ui";
-
-// MUI Date Time Picker + material components
-// Requires deps: @mui/material, @emotion/react, @emotion/styled, @mui/x-date-pickers, luxon
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterLuxon } from "@mui/x-date-pickers/AdapterLuxon";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
-import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
-import { TextField, Autocomplete, Stack, Box } from "@mui/material";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { TextField, Autocomplete, Stack } from "@mui/material";
+import { ThemeProvider } from "@mui/material/styles";
 import { getTimezoneLabels } from "../i18n/timezoneLabels";
 import { loadZoneToCountryMap } from "../utils/zoneTab";
 import { toFlagEmoji } from "../utils/flags";
-import {
-  getZoneLongName,
-  utcOffsetStringForZone,
-  parseIxdtf,
-  formatToIxdtf,
-  type ZonedValue,
-} from "../utils/datetime";
-import { normalizeForSearch, makeSearchHaystack } from "../utils/search";
-import { getSupportedTimeZones, groupForTimeZone } from "../utils/timezones";
+import { parseIxdtf, formatToIxdtf, type ZonedValue } from "../utils/datetime";
+import { getSupportedTimeZones } from "../utils/timezones";
+import { buildZoneOptions } from "../utils/zoneOptions";
 
 import { DateTime } from "luxon";
+import { createMuiThemeFromDato } from "../ui/theme";
+import { CLOCK_VIEW_RENDERERS } from "../ui/timePicker";
+import {
+  renderZoneOptionFactory,
+  filterZoneOptionsMUI,
+  TZ_LISTBOX_SLOT_PROPS,
+} from "../ui/timeZoneAutocomplete";
+import type { ZoneOption } from "../types/timezone";
 
 /**
- * ZonedDateTime (IXDTF) field editor
+ * ZonedDateTime field editor
  *
- * This editor targets TEXT fields and reads/writes values in Internet Extended
- * Date/Time Format (IXDTF, RFC 9557), for example:
+ * Stores/loads Internet Extended Date/Time Format (IXDTF, RFC 9557), e.g.:
  *   2025-09-08T15:30:00+02:00[Europe/Rome]
  *
- * Design notes:
- * - We keep the chosen IANA time zone (e.g. Europe/Rome) and compute the
- *   numeric offset at the chosen local date-time (e.g. +02:00 or +01:00) so
- *   the saved string captures DST correctly.
- * - Internally we store two pieces of state: the local wall-clock date-time
- *   without offset ("dateTime") and the IANA zone ("timeZone"). The offset is
- *   derived on save using Luxon with the zone applied.
- * - We only support IXDTF strings. No legacy JSON format.
+ * How it works
+ * - State keeps the local wall-clock date-time (no offset) and the IANA zone.
+ * - On save, Luxon derives the correct numeric offset for that date-time/zone
+ *   so DST is preserved in the stored string.
+ *
+ * MUI integration
+ * - DateTimePicker uses Luxon adapter and `viewRenderers` for the clock views.
+ * - Autocomplete options are grouped and rendered with custom content
+ *   (flag, UTC offset, localized long name) and a theme override for selected
+ *   and hover states.
  */
 
-type ZoneOption = {
-  tz: string;
-  group: string;
-  label: string;
-  offsetMin: number;
-  searchHay: string;
-};
+const CANVAS_HEIGHT = 500;
 
-// (moved: getSupportedTimeZones in utils/timezones)
 
 export const ZonedDateTimeField = ({
   ctx,
@@ -69,64 +61,40 @@ export const ZonedDateTimeField = ({
     setHeight,
   } = ctx;
 
-  // Parse field value (IXDTF string) into internal state on mount.
+  // Parse current field value into internal state on mount.
   const [zonedDateTime, setZonedDateTime] = useState<ZonedValue>(() => {
     const initial = ctx.formValues[fieldPath] as string | null | undefined;
     return parseIxdtf(initial ?? "");
   });
 
-  // Compute IXDTF string whenever local state changes
+  // Format IXDTF string when local state changes
   const ixdtfString = useMemo(
     () => formatToIxdtf(zonedDateTime),
     [zonedDateTime]
   );
 
-  // Persist to Dato whenever local state changes
+  // Persist formatted value to DatoCMS when it changes
   useEffect(() => {
     setFieldValue(fieldPath, ixdtfString);
   }, [ixdtfString, setFieldValue, fieldPath]);
 
-  // Map DatoCMS theme colors into MUI theme
+  // Map DatoCMS theme colors into an MUI theme
   const muiTheme = useMemo(
     () =>
-      createTheme({
-        palette: {
-          primary: { main: primaryColor },
-          secondary: { main: accentColor, light: lightColor, dark: darkColor },
-        },
-        components: {
-          MuiAutocomplete: {
-            styleOverrides: {
-              option: ({ theme }) => ({
-                '&[aria-selected="true"]': {
-                  backgroundColor: `${theme.palette.primary.main} !important`,
-                  color: `${theme.palette.primary.contrastText} !important`,
-                },
-                "&:hover": {
-                  backgroundColor: `${theme.palette.secondary.light} !important`,
-                  color: `${theme.palette.secondary.dark} !important`,
-                },
-              }),
-            },
-          },
-        },
-      }),
-    [primaryColor, accentColor]
+      createMuiThemeFromDato(primaryColor, accentColor, lightColor, darkColor),
+    [primaryColor, accentColor, lightColor, darkColor]
   );
 
-  // Time zone dropdown. Show current offset next to each zone for clarity.
+  // Time zone dropdown data
   const timeZones = useMemo(() => getSupportedTimeZones(), []);
   const now = useMemo(() => new Date(), []);
 
-  // Favorites/suggested group pinned at the top:
-  // - UTC
-  // - Browser time zone
-  // - Site default time zone (from DatoCMS project)
+  // Suggested time zones shown first: UTC, Site default, Browser zone
   const browserTimeZone = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     []
   );
-  // Localized strings for UI labels
+  // Localized UI labels
   const labels = getTimezoneLabels(userPreferredLocale);
   const suggestedLabel = labels.suggested;
   const suggestedTimeZones = useMemo(() => {
@@ -137,93 +105,37 @@ export const ZonedDateTimeField = ({
     return Array.from(new Set(arr));
   }, [browserTimeZone, userPreferredTimeZone]);
 
-  // (moved: groupForTimeZone in utils/timezones)
-  // Pre-load TZ -> country code map from official zone.tab
+  // Pre-load TZ -> country code map from IANA zone.tab
   const zoneToCountry = useMemo(() => loadZoneToCountryMap(), []);
-  const makeLabel = (
-    tz: string,
-    kind: "suggested" | "regular",
-    offsetMin: number
-  ) => {
-    const offset = utcOffsetStringForZone(tz, now);
-    const localized = getZoneLongName(userPreferredLocale, tz, now) ?? tz;
-    const cc = zoneToCountry.get(tz) ?? null;
-    const flag = cc ? `${toFlagEmoji(cc)} ` : "";
-    const base = `${tz} (${offset}${localized && localized !== tz ? `, ${localized}` : ""})`;
-    if (tz === "UTC") return `🌍 ${base}`;
-    if (kind === "suggested") {
-      if (tz === browserTimeZone) return `${flag}${labels.browser}: ${base}`;
-      if (tz === userPreferredTimeZone) return `${flag}${labels.site}: ${base}`;
-      return `${flag}${base}`;
-    }
-    return `${flag}${base}`;
-  };
+  // Option labels and filtering are handled by the helper modules
 
-  const makeSearchHay = (tz: string, label: string): string =>
-    makeSearchHaystack(tz, label);
-
-  // Build a TZ -> country code map from official IANA zone.tab
-  // (zoneToCountry map is built above)
-
-  const options: ZoneOption[] = useMemo(() => {
-    const offsetCache = new Map<string, number>();
-    const getOffset = (tz: string) => {
-      if (!offsetCache.has(tz)) {
-        // Use Luxon to read the current offset for the given zone
-        const offset = DateTime.fromJSDate(now, { zone: tz }).offset;
-        offsetCache.set(tz, offset);
-      }
-      return offsetCache.get(tz)!;
-    };
-    // Suggested copies first
-    const suggested: ZoneOption[] = suggestedTimeZones.map((tz) => {
-      const offsetMin = getOffset(tz);
-      const label = makeLabel(tz, "suggested", offsetMin);
-      return {
-        tz,
-        group: suggestedLabel,
-        label,
-        offsetMin,
-        searchHay: makeSearchHay(tz, label),
-      };
-    });
-    // Keep fixed order: UTC, This project (site), Your browser
-    const priorityOf = (tz: string) =>
-      tz === "UTC"
-        ? 0
-        : tz === userPreferredTimeZone
-          ? 1
-          : tz === browserTimeZone
-            ? 2
-            : 3;
-    suggested.sort((a, b) => priorityOf(a.tz) - priorityOf(b.tz));
-
-    // Full list including zones that are also in suggested
-    const regular: ZoneOption[] = timeZones.map((tz) => {
-      const offsetMin = getOffset(tz);
-      const label = makeLabel(tz, "regular", offsetMin);
-      return {
-        tz,
-        group: groupForTimeZone(tz),
-        label,
-        offsetMin,
-        searchHay: makeSearchHay(tz, label),
-      };
-    });
-    regular.sort((a, b) => {
-      if (a.group !== b.group) return a.group.localeCompare(b.group);
-      return a.offsetMin - b.offsetMin || a.label.localeCompare(b.label);
-    });
-
-    return [...suggested, ...regular];
-  }, [
-    timeZones,
-    now,
-    suggestedTimeZones,
-    browserTimeZone,
-    userPreferredTimeZone,
-    userPreferredLocale,
-  ]);
+  const options: ZoneOption[] = useMemo(
+    () =>
+      buildZoneOptions({
+        timeZones,
+        now,
+        suggestedTimeZones,
+        suggestedLabel,
+        browserTimeZone,
+        siteTimeZone: userPreferredTimeZone,
+        locale: userPreferredLocale,
+        zoneToCountry,
+        toFlagEmoji,
+        labels: { browser: labels.browser, site: labels.site },
+      }),
+    [
+      timeZones,
+      now,
+      suggestedTimeZones,
+      suggestedLabel,
+      browserTimeZone,
+      userPreferredTimeZone,
+      userPreferredLocale,
+      zoneToCountry,
+      labels.browser,
+      labels.site,
+    ]
+  );
 
   // DateTimePicker value: Luxon DateTime in the selected zone
   const selectedDateTime: DateTime | null = useMemo(() => {
@@ -233,7 +145,7 @@ export const ZonedDateTimeField = ({
     return parsed.isValid ? parsed : null;
   }, [zonedDateTime?.dateTime, zonedDateTime?.timeZone]);
 
-  // When the user edits the date/time, keep the local wall time (no offset)
+  // When the user edits the date/time, keep local wall time (no offset)
   const handleDateChange = (newVal: DateTime | null) => {
     setZonedDateTime((prev) => ({
       ...prev,
@@ -241,12 +153,12 @@ export const ZonedDateTimeField = ({
     }));
   };
 
-  // When the user picks an IANA zone, we store it and re-derive the offset on save
+  // When the user picks a zone, update it and re-derive offset on save
   const handleTzChange = (_: unknown, newValue: string | null) => {
     setZonedDateTime((prev) => ({ ...prev, timeZone: newValue }));
   };
 
-  setHeight(500);
+  setHeight(CANVAS_HEIGHT);
 
   return (
     <Canvas ctx={ctx} noAutoResizer={true}>
@@ -269,11 +181,7 @@ export const ZonedDateTimeField = ({
                     placeholder: labels.dateTime,
                   },
                 }}
-                viewRenderers={{
-                  hours: renderTimeViewClock,
-                  minutes: renderTimeViewClock,
-                  seconds: renderTimeViewClock,
-                }}
+                viewRenderers={CLOCK_VIEW_RENDERERS}
                 sx={{ width: 310 }}
               />
               <Autocomplete<ZoneOption, false, false, false>
@@ -286,58 +194,23 @@ export const ZonedDateTimeField = ({
                   ) ?? null
                 }
                 isOptionEqualToValue={(opt, val) => opt.tz === val.tz}
-                renderOption={(props, opt) => {
-                  const isSuggested = opt.group === suggestedLabel;
-                  const isBrowser = opt.tz === browserTimeZone;
-                  const isSite = opt.tz === userPreferredTimeZone;
-                  const isUTC = opt.tz === "UTC";
-                  const countryCode = zoneToCountry.get(opt.tz) ?? null;
-                  const flag = countryCode
-                    ? `${toFlagEmoji(countryCode)} `
-                    : "";
-                  const globe = isUTC ? "🌍 " : "";
-                  const offsetText = utcOffsetStringForZone(opt.tz, now);
-                  const localizedName =
-                    getZoneLongName(userPreferredLocale, opt.tz, now) ?? opt.tz;
-                  const suffix = `${offsetText}${
-                    localizedName !== opt.tz ? `, ${localizedName}` : ""
-                  }`;
-                  const prefix =
-                    isSuggested && (isBrowser || isSite)
-                      ? `${isBrowser ? labels.browser : labels.site}: `
-                      : "";
-                  return (
-                    <li {...props}>
-                      {globe}
-                      {flag}
-                      {prefix}
-                      <Box marginX={1}>
-                        <strong>{opt.tz}</strong>
-                      </Box>
-                      <Box component="span" sx={{ color: "text.secondary" }}>
-                        ({suffix})
-                      </Box>
-                    </li>
-                  );
-                }}
-                filterOptions={(opts, state) => {
-                  const q = (state.inputValue ?? "").trim();
-                  if (!q) return opts;
-                  const norm = normalizeForSearch(q);
-                  if (!norm) return opts;
-                  const tokens = norm.split(/\s+/).filter(Boolean);
-                  return opts.filter((o) =>
-                    tokens.every((t) => o.searchHay.includes(t))
-                  );
-                }}
+                renderOption={renderZoneOptionFactory({
+                  labels,
+                  browserTimeZone,
+                  siteTimeZone: userPreferredTimeZone,
+                  zoneToCountry,
+                  now,
+                  locale: userPreferredLocale,
+                })}
+                filterOptions={filterZoneOptionsMUI}
                 onChange={(_, newOption) =>
                   handleTzChange(_, newOption?.tz ?? null)
                 }
                 getOptionLabel={(opt) => opt.label}
                 slotProps={{
-                  listbox: { sx: { maxHeight: 200, overflowY: "auto" } },
+                  listbox: TZ_LISTBOX_SLOT_PROPS,
                 }}
-                // Styling handled via theme to avoid flicker between states
+                // Styling for options handled via theme override
                 renderInput={(params) => (
                   <TextField
                     {...params}
