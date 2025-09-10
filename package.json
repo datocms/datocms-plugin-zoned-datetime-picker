@@ -1,0 +1,49 @@
+{
+  "name": "datocms-plugin-zoned-datetimes",
+  "description": "A text field editor that saves IXDTF (RFC 9557) strings with IANA time zone, preserving original zone and DST.",
+  "homepage": "https://github.com/<USER>/<REPO>",
+  "private": false,
+  "version": "0.1.0",
+  "author": "Roger Tuan (DatoCMS) <r.tuan@datocms.com>",
+  "type": "module",
+  "keywords": [
+    "datocms-plugin"
+  ],
+  "datoCmsPlugin": {
+    "title": "Zoned DateTimes",
+    "coverImage": "docs/cover-1200x800.png",
+    "previewImage": "docs/preview.mp4",
+    "entryPoint": "dist/index.html",
+    "permissions": []
+  },
+  "files": [
+    "dist",
+    "docs"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^7.3.2",
+    "@mui/x-date-pickers": "^7.11.0",
+    "datocms-plugin-sdk": "^2.0.15",
+    "datocms-react-ui": "^2.0.15",
+    "luxon": "^3.7.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.1",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "prettier": "^3.6.2"
+  }
+}
