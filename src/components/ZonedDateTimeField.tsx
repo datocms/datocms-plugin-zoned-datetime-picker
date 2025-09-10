@@ -228,7 +228,9 @@ export const ZonedDateTimeField = ({
             />
           </Stack>
           <Stack direction="row" justifyContent="end">
-            <FieldHint>{ixdtfString}</FieldHint>
+            <FieldHint>
+              <code>{ixdtfString}</code>
+            </FieldHint>
           </Stack>
         </LocalizationProvider>
       </ThemeProvider>
