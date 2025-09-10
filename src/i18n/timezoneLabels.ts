@@ -1,7 +1,9 @@
-// Localized labels for the time zone editor UI.
-// Add languages here as needed. Fallback is English.
+/**
+ * Localized labels for the time zone editor UI.
+ * Add languages here as needed. Fallback is English.
+ */
 
-export type TimezoneLabels = {
+export type UILabels = {
   suggested: string;
   browser: string;
   site: string;
@@ -9,7 +11,7 @@ export type TimezoneLabels = {
   timeZone: string;
 };
 
-const LABELS: Record<string, TimezoneLabels> = {
+const UILABELS_BY_COUNTRY: Record<string, UILabels> = {
   en: {
     suggested: "Suggested",
     browser: "Your browser",
@@ -61,8 +63,16 @@ const LABELS: Record<string, TimezoneLabels> = {
   },
 };
 
-export function getTimezoneLabels(userPreferredLocale: string | undefined): TimezoneLabels {
+/**
+ * Returns localized UI labels for the given user-preferred locale.
+ *
+ * Example
+ *   getTimezoneLabels('it-IT')
+ *   // => { suggested: 'Suggeriti', browser: 'Il tuo browser', ... }
+ */
+export function getTimezoneLabels(
+  userPreferredLocale: string | undefined
+): UILabels {
   const key = (userPreferredLocale || "en").split("-")[0].toLowerCase();
-  return LABELS[key] || LABELS.en;
+  return UILABELS_BY_COUNTRY[key] || UILABELS_BY_COUNTRY.en;
 }
-

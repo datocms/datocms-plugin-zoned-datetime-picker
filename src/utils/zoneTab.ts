@@ -1,8 +1,17 @@
-// Parse official IANA tzdb zone.tab (ASCII, one country code per row)
-// to map time zone -> ISO 3166-1 alpha-2 country code.
+/**
+ * Parse official IANA tzdb zone.tab (ASCII, one country code per row)
+ * to map time zone -> ISO 3166-1 alpha-2 country code.
+ */
 
-import zoneTabRaw from "../data/zone.tab?raw";
+import zoneTabRaw from "../i18n/zone.tab?raw";
 
+/**
+ * Loads and parses src/data/zone.tab into a map of IANA time zone to country code.
+ *
+ * Example
+ *   const map = loadZoneToCountryMap();
+ *   map.get('Europe/Rome'); // => 'IT'
+ */
 export function loadZoneToCountryMap(): Map<string, string> {
   const map = new Map<string, string>();
   const raw = zoneTabRaw || "";
@@ -17,4 +26,3 @@ export function loadZoneToCountryMap(): Map<string, string> {
   }
   return map;
 }
-

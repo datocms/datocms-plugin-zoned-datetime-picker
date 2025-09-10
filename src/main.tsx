@@ -1,14 +1,9 @@
 import { connect } from "datocms-plugin-sdk";
 import "datocms-react-ui/styles.css";
-import ConfigScreen from "./entrypoints/ConfigScreen";
 import { render } from "./utils/render";
 import { ZonedDateTimeField } from "./entrypoints/ZonedDateTimeField";
 
 connect({
-  renderConfigScreen(ctx) {
-    return render(<ConfigScreen ctx={ctx} />);
-  },
-
   // Expose our manual field extension for text fields (IXDTF)
   manualFieldExtensions() {
     return [

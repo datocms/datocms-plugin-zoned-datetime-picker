@@ -8,13 +8,20 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterLuxon } from "@mui/x-date-pickers/AdapterLuxon";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
-import { TextField, Autocomplete, Stack } from "@mui/material";
+import { TextField, Autocomplete, Stack, Box } from "@mui/material";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { getTimezoneLabels } from "../i18n/timezoneLabels";
 import { loadZoneToCountryMap } from "../utils/zoneTab";
 import { toFlagEmoji } from "../utils/flags";
-import { getZoneLongName, utcOffsetStringForZone, parseIxdtf, formatToIxdtf, type ZonedValue } from "../utils/datetime";
+import {
+  getZoneLongName,
+  utcOffsetStringForZone,
+  parseIxdtf,
+  formatToIxdtf,
+  type ZonedValue,
+} from "../utils/datetime";
 import { normalizeForSearch, makeSearchHaystack } from "../utils/search";
+import { getSupportedTimeZones, groupForTimeZone } from "../utils/timezones";
 
 import { DateTime } from "luxon";
 
@@ -43,13 +50,7 @@ type ZoneOption = {
   searchHay: string;
 };
 
-function getSupportedTimeZones(): readonly string[] {
-  // Assume Intl.supportedValuesOf exists in the environment per project setup
-  const intlWithSupport = Intl as typeof Intl & {
-    supportedValuesOf: (key: "timeZone") => readonly string[];
-  };
-  return intlWithSupport.supportedValuesOf("timeZone");
-}
+// (moved: getSupportedTimeZones in utils/timezones)
 
 export const ZonedDateTimeField = ({
   ctx,
@@ -136,12 +137,7 @@ export const ZonedDateTimeField = ({
     return Array.from(new Set(arr));
   }, [browserTimeZone, userPreferredTimeZone]);
 
-  // Group IANA zones by top-level region (e.g., Europe, America, Asia) and sort
-  const groupForTimeZone = (tz: string): string => {
-    if (tz === "UTC" || tz === "GMT" || tz.startsWith("Etc/")) return "UTC";
-    const first = tz.split("/")[0];
-    return first || "Other";
-  };
+  // (moved: groupForTimeZone in utils/timezones)
   // Pre-load TZ -> country code map from official zone.tab
   const zoneToCountry = useMemo(() => loadZoneToCountryMap(), []);
   const makeLabel = (
@@ -163,7 +159,8 @@ export const ZonedDateTimeField = ({
     return `${flag}${base}`;
   };
 
-  const makeSearchHay = (tz: string, label: string): string => makeSearchHaystack(tz, label);
+  const makeSearchHay = (tz: string, label: string): string =>
+    makeSearchHaystack(tz, label);
 
   // Build a TZ -> country code map from official IANA zone.tab
   // (zoneToCountry map is built above)
@@ -289,13 +286,49 @@ export const ZonedDateTimeField = ({
                   ) ?? null
                 }
                 isOptionEqualToValue={(opt, val) => opt.tz === val.tz}
+                renderOption={(props, opt) => {
+                  const isSuggested = opt.group === suggestedLabel;
+                  const isBrowser = opt.tz === browserTimeZone;
+                  const isSite = opt.tz === userPreferredTimeZone;
+                  const isUTC = opt.tz === "UTC";
+                  const countryCode = zoneToCountry.get(opt.tz) ?? null;
+                  const flag = countryCode
+                    ? `${toFlagEmoji(countryCode)} `
+                    : "";
+                  const globe = isUTC ? "🌍 " : "";
+                  const offsetText = utcOffsetStringForZone(opt.tz, now);
+                  const localizedName =
+                    getZoneLongName(userPreferredLocale, opt.tz, now) ?? opt.tz;
+                  const suffix = `${offsetText}${
+                    localizedName !== opt.tz ? `, ${localizedName}` : ""
+                  }`;
+                  const prefix =
+                    isSuggested && (isBrowser || isSite)
+                      ? `${isBrowser ? labels.browser : labels.site}: `
+                      : "";
+                  return (
+                    <li {...props}>
+                      {globe}
+                      {flag}
+                      {prefix}
+                      <Box marginX={1}>
+                        <strong>{opt.tz}</strong>
+                      </Box>
+                      <Box component="span" sx={{ color: "text.secondary" }}>
+                        ({suffix})
+                      </Box>
+                    </li>
+                  );
+                }}
                 filterOptions={(opts, state) => {
                   const q = (state.inputValue ?? "").trim();
                   if (!q) return opts;
                   const norm = normalizeForSearch(q);
                   if (!norm) return opts;
                   const tokens = norm.split(/\s+/).filter(Boolean);
-                  return opts.filter((o) => tokens.every((t) => o.searchHay.includes(t)));
+                  return opts.filter((o) =>
+                    tokens.every((t) => o.searchHay.includes(t))
+                  );
                 }}
                 onChange={(_, newOption) =>
                   handleTzChange(_, newOption?.tz ?? null)
