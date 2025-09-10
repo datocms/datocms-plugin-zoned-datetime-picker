@@ -16,10 +16,7 @@ import { buildZoneOptions } from "../utils/zoneOptions";
 import { DateTime } from "luxon";
 import { createMuiThemeFromDato } from "../ui/theme";
 import { CLOCK_VIEW_RENDERERS } from "../ui/timePicker";
-import {
-  filterZoneOptionsMUI,
-  TZ_LISTBOX_SLOT_PROPS,
-} from "../ui/timeZoneAutocomplete";
+import { filterZoneOptionsMUI } from "../ui/timeZoneAutocomplete";
 import type { ZoneOption } from "../types/timezone";
 
 /**
@@ -55,6 +52,8 @@ export const ZonedDateTimeField = ({
     },
     theme: { primaryColor, accentColor, lightColor, darkColor },
     setHeight,
+    startAutoResizer,
+    stopAutoResizer,
   } = ctx;
 
   // Parse current field value into internal state on mount.
@@ -191,14 +190,29 @@ export const ZonedDateTimeField = ({
               }
               isOptionEqualToValue={(opt, val) => opt.tz === val.tz}
               filterOptions={filterZoneOptionsMUI}
-              onChange={(_, newOption) =>
-                handleTzChange(_, newOption?.tz ?? null)
-              }
+              onChange={(_, newOption) => {
+                handleTzChange(_, newOption?.tz ?? null);
+                startAutoResizer();
+              }}
+              onBlur={() => startAutoResizer()}
               getOptionLabel={(opt) => opt.label}
               slotProps={{
-                listbox: TZ_LISTBOX_SLOT_PROPS,
+                listbox: {
+                  sx: { maxHeight: 200, overflowY: "auto" },
+                },
                 popper: {
-                  popperOptions: {},
+                  modifiers: [
+                    {
+                      // Workaround for the popper node overflowing the iframe and causing a huge expansion
+                      name: "Manually resize on popup",
+                      enabled: true,
+                      phase: "main",
+                      fn() {
+                        stopAutoResizer();
+                        setHeight(300);
+                      },
+                    },
+                  ],
                 },
               }}
               // Styling for options handled via theme override

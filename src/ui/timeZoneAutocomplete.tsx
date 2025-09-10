@@ -14,11 +14,9 @@ export function renderZoneOptionFactory(cfg: {
   now: Date;
   locale?: string;
 }) {
-  const { labels, browserTimeZone, siteTimeZone, zoneToCountry, now, locale } = cfg;
-  return (
-    props: React.HTMLAttributes<HTMLLIElement>,
-    opt: ZoneOption
-  ) => {
+  const { labels, browserTimeZone, siteTimeZone, zoneToCountry, now, locale } =
+    cfg;
+  return (props: React.HTMLAttributes<HTMLLIElement>, opt: ZoneOption) => {
     const isSuggested = opt.group === labels.suggested;
     const isBrowser = opt.tz === browserTimeZone;
     const isSite = !!siteTimeZone && opt.tz === siteTimeZone;
@@ -29,9 +27,10 @@ export function renderZoneOptionFactory(cfg: {
     const offsetText = utcOffsetStringForZone(opt.tz, now);
     const localizedName = getZoneLongName(locale, opt.tz, now) ?? opt.tz;
     const suffix = `${offsetText}${localizedName !== opt.tz ? `, ${localizedName}` : ""}`;
-    const prefix = isSuggested && (isBrowser || isSite)
-      ? `${isBrowser ? labels.browser : labels.site}: `
-      : "";
+    const prefix =
+      isSuggested && (isBrowser || isSite)
+        ? `${isBrowser ? labels.browser : labels.site}: `
+        : "";
     return (
       <li {...props}>
         {globe}
@@ -66,6 +65,3 @@ export function filterZoneOptionsMUI(
 ) {
   return filterZoneOptions(opts, state.inputValue);
 }
-
-export const TZ_LISTBOX_SLOT_PROPS = { sx: { maxHeight: 200, overflowY: "auto" } } as const;
-
