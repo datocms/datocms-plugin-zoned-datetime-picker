@@ -4,7 +4,7 @@ import { Canvas, FieldHint } from "datocms-react-ui";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterLuxon } from "@mui/x-date-pickers/AdapterLuxon";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
-import { TextField, Autocomplete, Stack, Box, Popper } from "@mui/material";
+import { TextField, Autocomplete, Stack } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import { getTimezoneLabels } from "../i18n/timezoneLabels";
 import { loadZoneToCountryMap } from "../utils/zoneTab";
@@ -16,7 +16,10 @@ import { buildZoneOptions } from "../utils/zoneOptions";
 import { DateTime } from "luxon";
 import { createMuiThemeFromDato } from "../ui/theme";
 import { CLOCK_VIEW_RENDERERS } from "../ui/timePicker";
-import { filterZoneOptionsMUI } from "../ui/timeZoneAutocomplete";
+import {
+  filterZoneOptionsMUI,
+  renderZoneOptionFactory,
+} from "../ui/timeZoneAutocomplete";
 import type { ZoneOption } from "../types/timezone";
 
 /**
@@ -132,6 +135,27 @@ export const ZonedDateTimeField = ({
     ]
   );
 
+  // Custom renderer to bold the TZ name and show suffix/flags
+  const renderZoneOption = useMemo(
+    () =>
+      renderZoneOptionFactory({
+        labels,
+        browserTimeZone,
+        siteTimeZone: userPreferredTimeZone,
+        zoneToCountry,
+        now,
+        locale: userPreferredLocale,
+      }),
+    [
+      labels,
+      browserTimeZone,
+      userPreferredTimeZone,
+      zoneToCountry,
+      now,
+      userPreferredLocale,
+    ]
+  );
+
   // DateTimePicker value: Luxon DateTime in the selected zone
   const selectedDateTime: DateTime | null = useMemo(() => {
     if (!zonedDateTime?.dateTime) return null;
@@ -180,22 +204,24 @@ export const ZonedDateTimeField = ({
               viewRenderers={CLOCK_VIEW_RENDERERS}
               sx={{ width: 310 }}
             />
-            <Autocomplete<ZoneOption, false, false, false>
+            <Autocomplete
               id="zdt-tz"
               options={options}
               groupBy={(opt) => opt.group}
+              getOptionLabel={(opt) => opt.label}
               value={
                 options.find((o) => o.tz === (zonedDateTime.timeZone ?? "")) ??
-                null
+                options[0]
               }
+              disableClearable={true}
               isOptionEqualToValue={(opt, val) => opt.tz === val.tz}
               filterOptions={filterZoneOptionsMUI}
+              renderOption={renderZoneOption}
               onChange={(_, newOption) => {
                 handleTzChange(_, newOption?.tz ?? null);
                 startAutoResizer();
               }}
               onBlur={() => startAutoResizer()}
-              getOptionLabel={(opt) => opt.label}
               slotProps={{
                 listbox: {
                   sx: { maxHeight: 200, overflowY: "auto" },

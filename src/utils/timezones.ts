@@ -19,7 +19,9 @@
  *   zones.includes('Europe/Rome'); // => boolean
  */
 export function getSupportedTimeZones(): readonly string[] {
-  const anyIntl = Intl as typeof Intl & { supportedValuesOf?: (key: "timeZone") => readonly string[] };
+  const anyIntl = Intl as typeof Intl & {
+    supportedValuesOf?: (key: "timeZone") => readonly string[];
+  };
   if (typeof anyIntl.supportedValuesOf === "function") {
     try {
       return anyIntl.supportedValuesOf("timeZone");
@@ -35,7 +37,7 @@ export function getSupportedTimeZones(): readonly string[] {
  * Examples: 'Europe/Rome' -> 'Europe', 'UTC' -> 'UTC'.
  */
 export function groupForTimeZone(tz: string): string {
-  if (tz === "UTC" || tz === "GMT" || tz.startsWith("Etc/")) return "UTC";
+  if (tz === "UTC" || tz === "GMT" || tz.startsWith("Etc/")) return "Etc";
   const first = tz.split("/")[0];
   return first || "Other";
 }
