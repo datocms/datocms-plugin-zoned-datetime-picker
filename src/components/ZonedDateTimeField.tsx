@@ -182,7 +182,7 @@ export const ZonedDateTimeField = ({
     setZonedDateTime((prev) => ({ ...prev, timeZone: newValue }));
   };
 
-  const isTimeZonePickerDisabled = disabled || !zonedDateTime?.dateTime;
+  const isTimeZonePickerDisabled = disabled || !zonedDateTime?.dateTime?.length;
 
   return (
     <Canvas ctx={ctx}>
