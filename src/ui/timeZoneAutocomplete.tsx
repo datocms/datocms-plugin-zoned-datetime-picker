@@ -1,6 +1,6 @@
 import { Box } from "@mui/material";
 import React from "react";
-import type { UILabels } from "../i18n/timezoneLabels";
+import type { UILabels } from "../i18n/uiLabels";
 import { toFlagEmoji } from "../utils/flags";
 import { getZoneLongName, utcOffsetStringForZone } from "../utils/datetime";
 import { normalizeForSearch } from "../utils/search";

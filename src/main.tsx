@@ -4,22 +4,20 @@ import { render } from "./utils/render";
 import { ZonedDateTimeField } from "./components/ZonedDateTimeField";
 
 connect({
-  // Expose our manual field extension for text fields (IXDTF)
   manualFieldExtensions() {
     return [
       {
         id: "zonedDateTime",
         name: "Zoned DateTime",
         type: "editor",
-        fieldTypes: ["string"],
+        fieldTypes: ["json"],
         configurable: false,
         helpText:
-          "Saves as IXDTF (RFC 9557), e.g. 2025-09-08T15:30:00+02:00[Europe/Rome]",
+          "Saves a JSON object with IXDTF and derived fields (zoned_datetime_ixdtf, datetime_iso8601, zone, offset, date, time_24hr, time_12hr, am_pm, timestamp_epoch_seconds)",
       },
     ];
   },
 
-  // Render it
   renderFieldExtension(fieldExtensionId, ctx) {
     if (fieldExtensionId === "zonedDateTime") {
       return render(<ZonedDateTimeField ctx={ctx} />);

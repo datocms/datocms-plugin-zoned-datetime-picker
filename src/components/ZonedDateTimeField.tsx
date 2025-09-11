@@ -6,10 +6,14 @@ import { AdapterLuxon } from "@mui/x-date-pickers/AdapterLuxon";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { TextField, Autocomplete, Stack } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
-import { getTimezoneLabels } from "../i18n/timezoneLabels";
+import { getTimezoneLabels } from "../i18n/uiLabels";
 import { loadZoneToCountryMap } from "../utils/zoneTab";
 import { toFlagEmoji } from "../utils/flags";
-import { parseIxdtf, formatToIxdtf, type ZonedValue } from "../utils/datetime";
+import {
+  parseDatoValue,
+  buildDatoOutput,
+  type ZonedValue,
+} from "../utils/datetime";
 import { getSupportedTimeZones } from "../utils/timezones";
 import { buildZoneOptions } from "../utils/zoneOptions";
 
@@ -61,20 +65,21 @@ export const ZonedDateTimeField = ({
 
   // Parse current field value into internal state on mount.
   const [zonedDateTime, setZonedDateTime] = useState<ZonedValue>(() => {
-    const initial = ctx.formValues[fieldPath] as string | null | undefined;
-    return parseIxdtf(initial ?? "");
+    const rawField = ctx.formValues[fieldPath] as unknown as string;
+    const parsedField = JSON.parse(rawField);
+    return parseDatoValue(parsedField);
   });
 
-  // Format IXDTF string when local state changes
-  const ixdtfString = useMemo(
-    () => formatToIxdtf(zonedDateTime),
+  // Build JSON payload when local state changes
+  const datoPayload = useMemo(
+    () => JSON.stringify(buildDatoOutput(zonedDateTime), null, 2),
     [zonedDateTime]
   );
 
-  // Persist formatted value to DatoCMS when it changes
+  // Persist JSON payload to DatoCMS when it changes (JSON-only field)
   useEffect(() => {
-    setFieldValue(fieldPath, ixdtfString);
-  }, [ixdtfString, setFieldValue, fieldPath]);
+    setFieldValue(fieldPath, datoPayload);
+  }, [datoPayload, setFieldValue, fieldPath]);
 
   // Map DatoCMS theme colors into an MUI theme
   const muiTheme = useMemo(
@@ -221,12 +226,13 @@ export const ZonedDateTimeField = ({
                 handleTzChange(_, newOption?.tz ?? null);
                 startAutoResizer();
               }}
-              onBlur={() => startAutoResizer()}
+              onClose={() => startAutoResizer()}
               slotProps={{
                 listbox: {
                   sx: { maxHeight: 200, overflowY: "auto" },
                 },
                 popper: {
+                  disablePortal: true,
                   keepMounted: true,
                   modifiers: [
                     {
@@ -253,11 +259,6 @@ export const ZonedDateTimeField = ({
               disabled={disabled}
               fullWidth
             />
-          </Stack>
-          <Stack direction="row" justifyContent="end">
-            <FieldHint>
-              <code>{ixdtfString}</code>
-            </FieldHint>
           </Stack>
         </LocalizationProvider>
       </ThemeProvider>

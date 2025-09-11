@@ -17,11 +17,18 @@ export function createMuiThemeFromDato(
           option: ({ theme }) => ({
             '&[aria-selected="true"]': {
               backgroundColor: `${theme.palette.primary.main} !important`,
-              color: `${theme.palette.primary.contrastText} !important`,
+              "*": {
+                color: `${theme.palette.primary.contrastText} !important`,
+              },
             },
             "&:hover": {
               backgroundColor: `${theme.palette.secondary.light} !important`,
-              color: `${theme.palette.secondary.dark} !important`,
+              "*": {
+                color: `${theme.palette.secondary.dark} !important`,
+              },
+            },
+            "&.Mui-focused": {
+              backgroundColor: "unset",
             },
           }),
         },
@@ -29,4 +36,3 @@ export function createMuiThemeFromDato(
     },
   });
 }
-

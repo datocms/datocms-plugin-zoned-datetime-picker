@@ -1,91 +1,63 @@
-# Zoned DateTimes for DatoCMS (IXDTF)
+# Zoned DateTime Picker
 
-A zero‑config field editor that stores date and time values using Internet Extended Date/Time Format (IXDTF, RFC 9557). It preserves the original IANA time zone and the correct UTC offset for the chosen date, so daylight‑saving transitions are always represented accurately.
+This plugin is a field editor for JSON fields. It provides a user-friendly GUI for picking a date, time, and IANA timezone, and saves a JSON object that includes a RFC 9557 IXDTF datetime string along with helpful derived fields.
 
-![Cover](docs/cover-1200x800.svg)
+[RFC 9557](https://datatracker.ietf.org/doc/rfc9557/) is a proposed internet standard that expands current ISO 8601 datetime timestamps (which have a format like `1996-12-19T16:39:57-08:00`, without the explicit `[America/Los_Angeles]` time zone). This new format is called the Internet Extended Date/Time Format (IXDTF). The full specification allows additional metadata, but this plugin only adds the time zone string.
 
-## Overview
+## Stored JSON Shape
 
-- Field editor for `string`/`text` fields.
-- Stores a single IXDTF string, for example: `2025-09-08T15:30:00+02:00[Europe/Rome]`.
-- Uses Luxon + MUI Date/Time Picker for a smooth UX.
-- Time zone picker with flags, localized names, and smart suggestions (UTC, Project default, Browser zone).
-- Fully localized UI labels (English, Italian, French, German, Portuguese, Czech, Dutch).
+The JSON field value is an object like:
 
-## Why IXDTF?
+```
+{
+  "zoned_datetime_ixdtf": "1996-12-19T16:39:57-08:00[America/Los_Angeles]",
+  "datetime_iso8601": "1996-12-19T16:39:57-08:00",
+  "zone": "America/Los_Angeles",
+  "offset": "-08:00",
+  "date": "1996-12-19",
+  "time_24hr": "16:39:57",
+  "time_12hr": "04:39:57",
+  "am_pm": "pm",
+  "timestamp_epoch_seconds": "851042397"
+}
+```
 
-IXDTF augments ISO 8601 with explicit IANA time zone information (e.g. `Europe/Rome`) in addition to a numeric UTC offset. This ensures the stored value is unambiguous across DST boundaries and future‑proof if offset rules change.
-
-## Installation
-
-You can use it locally or publish to the Marketplace.
-
-1) Local development install
-
-- Clone this repository and install dependencies:
-
-  npm install
-
-- Start the dev server:
-
-  npm run dev
-
-- In DatoCMS → Settings → Plugins → Add new plugin → “Create a new local/remote plugin”, set the entrypoint URL to your local server (Vite dev server URL).
-
-2) Marketplace install
-
-- Once published, install from the DatoCMS Marketplace and enable permissions if requested (this plugin currently needs none).
-
-## Usage
-
-1. Add a `Text` field to your model.
-2. In Presentation → Field editor, select “Zoned DateTime”.
-3. Editors can pick a local date/time and a time zone; the value is stored as IXDTF.
-
-## Data format
-
-- Example: `2025-09-08T15:30:00+02:00[Europe/Rome]`
-- Structure: `<local-date>T<local-time><offset>[<IANA-time-zone>]`
-- The local wall‑clock time is preserved; the numeric offset is computed for that zone at that date/time, so DST is correct.
-
-## Features
-
-- Smart suggestions: UTC, the project time zone, and the browser zone appear first.
-- Powerful search: type city, offset (e.g. `utc+2`), or zone name.
-- Localized long names via `Intl.DateTimeFormat` when available.
-- Grouped options by region (e.g. Europe, America, Asia, UTC).
-- Keyboard and screen‑reader friendly MUI components.
-
-## Configuration
-
-No configuration is required. The plugin adapts to the project’s primary colors and the user’s preferred locale.
+Notes:
+- `zoned_datetime_ixdtf` follows RFC 9557 IXDTF and preserves the chosen zone and offset.
+- `datetime_iso8601` is ISO 8601 with numeric offset (no zone ID).
+- `time_24hr` is `HH:mm:ss`. `time_12hr` is `hh:mm:ss` (pair with `ampm`).
+- `am_pm` is `am` or `pm` (pair with `time_12hr`).
+- `timestamp_epoch_seconds` is epoch seconds (string).
 
 ## Compatibility
 
-- Time zones list is read from `Intl.supportedValuesOf('timeZone')` when supported by the runtime (modern browsers).
-- Relies on `@mui/x-date-pickers` and `luxon`.
+IMPORTANT NOTE: As of September 2025, the IXDTF or RFC9557 datestring format is not yet widely supported. You CANNOT yet parse it in most JS runtimes and datetime libraries.
 
-## Permissions
+Therefore, this plugin should ONLY be used if you know you have a need for it, and have a corresponding frontend library able to correctly utilize this extended format. If you try to parse IXDTF with an older ISO8601-only function, you may end up with incorrect information or crash your program altogether.
 
-This plugin does not require any special permissions.
+### Frontend Support
 
-## Development
+Browsers and most JS datetime libraries do not yet support RFC 9557/IXDTF. In the near future, this format should be compatible with the [Temporal API's ZoneDateTime format](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/ZonedDateTime#rfc_9557_format), which is itself experimental at the moment, with almost no browser support.
 
-- Build for production:
+For now, your options are:
 
-  npm run build
+- Manual regex parsing
+- Using a datetime lib that does have support, like [@11ty/parse-date-strings](https://www.npmjs.com/package/@11ty/parse-date-strings)
+- Using a Temporal API polyfill, like [fullcalendar/temporal-polyfill](https://github.com/fullcalendar/temporal-polyfill) or [js-temporal/temporal-polyfill](https://github.com/js-temporal/temporal-polyfill)
 
-- Preview the built plugin locally:
+## Why would I use this? Why not use the built-in date & time field?
 
-  npm run preview
+DatoCMS's default datetime picker converts the entered time to UTC as soon as you save. When you pick a time like `1996-12-19T16:39:57-08:00`, the system actually converts it to `1996-12-20T00:39:57.000Z` when you save. For some use cases, this is a problem because:
 
-The production entry point is `dist/index.html`.
+1. It makes cross-time-zone marketing difficult. It unrecoverably loses the original offset (`-08:00`). If your event was in `America/Los_Angeles`, your website was in `Europe/Rome`, and your visitor was in `Europe/London` , your frontend would have no way to know which time zone to use.
 
-## FAQ
+2. It doesn't respect daylight savings time. With an ISO 8601 offset like `-06:00`, there is no way to know if that is being used for a region that observes daylight savings time (like CDT, Central Daylight Time, in the USA) or one that doesn't (like Mexico City, which uses CST, Central Standard Time, instead). Depending on the time of the year, the timestamp may be ahead or behind by 1 hour in that case, and your frontend cannot tell which is correct without further information.
 
-- Can I migrate existing fields? Store strings in IXDTF format. The parser tolerates missing seconds and infers them.
-- What if the runtime lacks `Intl.supportedValuesOf`? The zone list will be empty; the control will still render but without the zone options.
+The plugin does two things to address this situation:
 
-## License
+1. It always encodes the original offset you chose. If you entered the time in `-08:00`, it stays that way and does not get coerced to UTC.
+2. It adds an explicit IANA time zone string like `[America/Los_Angeles]` and stores a helpful JSON payload. Your frontend can then use that time zone to ensure proper display via [`Intl.DateTimeFormat()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat) or a helper library like [Luxon](https://moment.github.io/luxon/#/).
 
-MIT
+## Notes on migration
+
+This plugin now supports JSON fields only. Legacy single-string fields storing plain IXDTF are no longer supported by the editor. If you previously stored IXDTF in a string field, migrate to a JSON field and, if needed, wrap the string into the JSON shape above.

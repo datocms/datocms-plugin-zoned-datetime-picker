@@ -1,7 +1,7 @@
 {
   "name": "datocms-plugin-zoned-datetimes",
-  "description": "Zoned DateTime field editor for DatoCMS that stores IXDTF (RFC 9557) strings with IANA time zone and correct UTC offset, preserving DST and local wall time.",
-  "homepage": "https://github.com/<USER>/<REPO>",
+  "description": "Zoned DateTime Picker is a DatoCMS plugin that stores datetime timestamps with time zone information. Outputs a JSON with ISO8601 and IXDTF strings, the IANA time zone string, UTC offset, and more.",
+  "homepage": "https://github.com/arcataroger/datocms-plugin-zoned-datetime-picker",
   "private": false,
   "version": "0.1.0",
   "author": "Roger Tuan (DatoCMS) <r.tuan@datocms.com>",
@@ -11,19 +11,11 @@
     "datocms",
     "field-editor",
     "datetime",
-    "date-time",
-    "time",
     "timezone",
-    "time-zone",
     "iana",
     "ixdtf",
     "rfc-9557",
-    "iso-8601",
-    "luxon",
-    "mui",
-    "date-picker",
-    "utc",
-    "dst"
+    "iso-8601"
   ],
   "datoCmsPlugin": {
     "title": "Zoned DateTime Picker",
