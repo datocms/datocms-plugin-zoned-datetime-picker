@@ -15,6 +15,9 @@ export function createMuiThemeFromDato(
       MuiAutocomplete: {
         styleOverrides: {
           option: ({ theme }) => ({
+            "&.Mui-focused": {
+              backgroundColor: "unset !important",
+            },
             '&[aria-selected="true"]': {
               backgroundColor: `${theme.palette.primary.main} !important`,
               "*": {
@@ -27,9 +30,7 @@ export function createMuiThemeFromDato(
                 color: `${theme.palette.secondary.dark} !important`,
               },
             },
-            "&.Mui-focused": {
-              backgroundColor: "unset",
-            },
+
           }),
         },
       },
