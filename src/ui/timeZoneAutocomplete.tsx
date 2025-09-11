@@ -39,7 +39,12 @@ export function renderZoneOptionFactory(cfg: {
         <Box marginX={1}>
           <strong>{opt.tz}</strong>
         </Box>
-        <Box component="span" sx={{ color: "text.secondary" }}>
+        <Box
+          component="span"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           ({suffix})
         </Box>
       </li>

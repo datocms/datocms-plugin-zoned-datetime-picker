@@ -227,6 +227,7 @@ export const ZonedDateTimeField = ({
                   sx: { maxHeight: 200, overflowY: "auto" },
                 },
                 popper: {
+                  keepMounted: true,
                   modifiers: [
                     {
                       // Workaround for the popper node overflowing the iframe and causing a huge expansion
