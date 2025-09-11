@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { RenderFieldExtensionCtx } from "datocms-plugin-sdk";
-import { Canvas, FieldHint } from "datocms-react-ui";
+import { Canvas } from "datocms-react-ui";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterLuxon } from "@mui/x-date-pickers/AdapterLuxon";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
@@ -182,6 +182,8 @@ export const ZonedDateTimeField = ({
     setZonedDateTime((prev) => ({ ...prev, timeZone: newValue }));
   };
 
+  const isTimeZonePickerDisabled = disabled || !zonedDateTime?.dateTime;
+
   return (
     <Canvas ctx={ctx}>
       <ThemeProvider theme={muiTheme}>
@@ -200,7 +202,7 @@ export const ZonedDateTimeField = ({
                 textField: {
                   id: "zdt-picker",
                   size: "small",
-                  placeholder: labels.dateTime,
+                  label: labels.dateTime,
                 },
                 desktopPaper: {
                   sx: { marginBottom: 2 },
@@ -215,8 +217,11 @@ export const ZonedDateTimeField = ({
               groupBy={(opt) => opt.group}
               getOptionLabel={(opt) => opt.label}
               value={
-                options.find((o) => o.tz === (zonedDateTime.timeZone ?? "")) ??
-                options[0]
+                isTimeZonePickerDisabled
+                  ? undefined
+                  : (options.find(
+                      (o) => o.tz === (zonedDateTime.timeZone ?? "")
+                    ) ?? options[0])
               }
               disableClearable={true}
               isOptionEqualToValue={(opt, val) => opt.tz === val.tz}
@@ -250,13 +255,9 @@ export const ZonedDateTimeField = ({
               }}
               // Styling for options handled via theme override
               renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  placeholder={labels.timeZone}
-                />
+                <TextField {...params} size="small" label={labels.timeZone} />
               )}
-              disabled={disabled}
+              disabled={isTimeZonePickerDisabled}
               fullWidth
             />
           </Stack>

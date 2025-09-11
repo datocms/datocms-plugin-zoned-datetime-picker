@@ -9,9 +9,16 @@ import { DateTime } from "luxon";
  * Example
  *   getZoneLongName('en-US', 'America/Los_Angeles', new Date()) // => 'Pacific Time'
  */
-export function getZoneLongName(locale: string | undefined, timeZone: string, at: Date): string | null {
+export function getZoneLongName(
+  locale: string | undefined,
+  timeZone: string,
+  at: Date
+): string | null {
   try {
-    const parts = new Intl.DateTimeFormat(locale, { timeZone, timeZoneName: "longGeneric" }).formatToParts(at);
+    const parts = new Intl.DateTimeFormat(locale, {
+      timeZone,
+      timeZoneName: "longGeneric",
+    }).formatToParts(at);
     const namePart = parts.find((p) => p.type === "timeZoneName");
     return namePart?.value ?? null;
   } catch {
@@ -40,15 +47,15 @@ export function utcOffsetStringForZone(timeZone: string, at: Date): string {
 export type ZonedValue = { dateTime?: string | null; timeZone?: string | null };
 
 export type DatoZonedOutput = {
-  zoned_datetime_ixdtf: string; // IXDTF e.g. 2025-09-08T15:30:00+02:00[Europe/Rome]
-  datetime_iso8601: string; // ISO8601 with numeric offset
+  zonedDateTime: string; // IXDTF e.g. 2025-09-08T15:30:00+02:00[Europe/Rome]
+  dateTime: string; // ISO8601 with numeric offset
   zone: string; // IANA time zone
   offset: string; // e.g. +02:00
   date: string; // yyyy-LL-dd
   time_24hr: string; // HH:mm:ss
   time_12hr: string; // hh:mm:ss (no AM/PM)
-  am_pm: "am" | "pm";
-  timestamp_epoch_seconds: string; // epoch seconds as string
+  ampm: "am" | "pm";
+  timestamp: string; // epoch seconds as string
 };
 
 /** Ensure seconds are present (we always store HH:mm:ss for clarity). */
@@ -71,9 +78,13 @@ export function parseIxdtf(input: string): ZonedValue {
   // Extract [Zone]
   const zoneMatch = trimmed.match(/\[([^\]]+)\]\s*$/);
   const timeZone = zoneMatch ? zoneMatch[1] : null;
-  const withoutZone = zoneMatch ? trimmed.slice(0, zoneMatch.index).trim() : trimmed;
+  const withoutZone = zoneMatch
+    ? trimmed.slice(0, zoneMatch.index).trim()
+    : trimmed;
   // Extract local date-time portion (strip any offset)
-  const localMatch = withoutZone.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)/);
+  const localMatch = withoutZone.match(
+    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)/
+  );
   const dateTime = localMatch ? ensureSeconds(localMatch[1]) : null;
   return { dateTime, timeZone };
 }
@@ -97,11 +108,7 @@ export function parseDatoValue(input: unknown): ZonedValue {
     // Prefer explicit fields over parsing IXDTF from JSON payload
     const zone = typeof anyVal.zone === "string" ? anyVal.zone : null;
     const dateTime =
-      typeof (anyVal as any).datetime_iso8601 === "string"
-        ? ((anyVal as any).datetime_iso8601 as string)
-        : typeof (anyVal as any).dateTime === "string"
-        ? ((anyVal as any).dateTime as string)
-        : null;
+      typeof anyVal.dateTime === "string" ? anyVal.dateTime : null;
     if (zone && dateTime) {
       // Extract local wall time part from ISO8601 with offset
       const m = dateTime.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)/);
@@ -109,20 +116,21 @@ export function parseDatoValue(input: unknown): ZonedValue {
     }
     // Fallback to separate date/time fields
     const date = typeof anyVal.date === "string" ? anyVal.date : null;
-    const time24 = typeof (anyVal as any).time_24hr === "string" ? (anyVal as any).time_24hr : null;
-    const time = typeof (anyVal as any).time === "string" ? (anyVal as any).time : null; // legacy
+    const time24 =
+      typeof (anyVal as any).time_24hr === "string"
+        ? (anyVal as any).time_24hr
+        : null;
+    const time =
+      typeof (anyVal as any).time === "string" ? (anyVal as any).time : null; // legacy
     if (zone && date && (time24 || time)) {
       const t = time24 ?? time!;
       return { dateTime: ensureSeconds(`${date}T${t}`), timeZone: zone };
     }
     // As a last resort, try parsing the embedded IXDTF
-    const zdt =
-      typeof (anyVal as any).zoned_datetime_ixdtf === "string"
-        ? ((anyVal as any).zoned_datetime_ixdtf as string)
-        : typeof (anyVal as any).zonedDateTime === "string"
-        ? ((anyVal as any).zonedDateTime as string)
+    const fromZdt =
+      typeof anyVal.zonedDateTime === "string"
+        ? parseIxdtf(anyVal.zonedDateTime)
         : null;
-    const fromZdt = zdt ? parseIxdtf(zdt) : null;
     if (fromZdt) return fromZdt;
   }
   return { dateTime: null, timeZone: null };
@@ -132,14 +140,17 @@ export function parseDatoValue(input: unknown): ZonedValue {
  * Builds the new JSON payload expected by Dato consumers from
  * a { dateTime, timeZone } structure. Returns null if invalid/incomplete.
  */
-export function buildDatoOutput(value: ZonedValue): DatoZonedOutput | null {
+export function buildDatoOutput(value: ZonedValue): DatoZonedOutput | {} {
   const { dateTime, timeZone } = value;
-  if (!dateTime || !timeZone) return null;
+  if (!dateTime || !timeZone) return {};
   const dt = DateTime.fromISO(dateTime, { zone: timeZone });
-  if (!dt.isValid) return null;
+  if (!dt.isValid) return {};
 
   // ISO with numeric offset, without zone id
-  const isoWithOffset = dt.toISO({ suppressMilliseconds: true, includeOffset: true });
+  const isoWithOffset = dt.toISO({
+    suppressMilliseconds: true,
+    includeOffset: true,
+  });
   // IXDTF with zone id appended
   const ixdtf = `${isoWithOffset}[${timeZone}]`;
   const offset = dt.toFormat("ZZ");
@@ -150,14 +161,14 @@ export function buildDatoOutput(value: ZonedValue): DatoZonedOutput | null {
   const timestamp = String(dt.toUnixInteger());
 
   return {
-    zoned_datetime_ixdtf: ixdtf,
-    datetime_iso8601: isoWithOffset,
+    zonedDateTime: ixdtf,
+    dateTime: isoWithOffset,
     zone: timeZone,
     offset,
     date,
     time_24hr,
     time_12hr,
-    am_pm: ampm,
-    timestamp_epoch_seconds: timestamp,
+    ampm,
+    timestamp,
   };
 }
