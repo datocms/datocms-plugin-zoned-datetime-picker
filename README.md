@@ -67,6 +67,11 @@ The plugin supports localized datetime entry and time zone names in the followin
 - Dutch (nl)
 - Portuguese (pt)
 
+## Changelog
+
+- 0.1.3 - Minor bug fixes
+- 0.1.2 - Initial beta release
+
 ## Attributions
 
 This plugin was made with:
