@@ -6,7 +6,7 @@ import { AdapterLuxon } from "@mui/x-date-pickers/AdapterLuxon";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { TextField, Autocomplete, Stack } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
-import { getTimezoneLabels } from "../i18n/uiLabels";
+import { getUiLabels } from "../i18n/uiLabels";
 import { parseZones } from "../i18n/parseZones";
 import { toFlagEmoji } from "../utils/flags";
 import {
@@ -15,7 +15,7 @@ import {
   type ZonedValue,
 } from "../utils/datetime";
 import { getSupportedTimeZones } from "../utils/timezones";
-import { buildZoneOptions } from "../utils/zoneOptions";
+import { buildZoneOptions, type ZoneOption } from "../utils/zoneOptions";
 
 import { DateTime } from "luxon";
 import { createMuiThemeFromDato } from "../ui/theme";
@@ -24,7 +24,6 @@ import {
   filterZoneOptionsMUI,
   renderZoneOptionFactory,
 } from "../ui/timeZoneAutocomplete";
-import type { ZoneOption } from "../types/ZoneOption";
 
 /**
  * ZonedDateTime field editor
@@ -98,7 +97,7 @@ export const ZonedDateTimePicker = ({
   );
 
   // Localized UI labels
-  const labels = getTimezoneLabels(userPreferredLocale);
+  const labels = getUiLabels(userPreferredLocale);
   const suggestedLabel = labels.suggested;
   const suggestedTimeZones = ["UTC", userPreferredTimeZone, browserTimeZone];
 

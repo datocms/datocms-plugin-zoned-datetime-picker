@@ -2,7 +2,21 @@ import { DateTime } from "luxon";
 import { getZoneLongName, utcOffsetStringForZone } from "./datetime";
 import { groupForTimeZone } from "./timezones";
 import { makeSearchHaystack } from "./search";
-import type { ZoneOption } from "../types/ZoneOption";
+
+/**
+ * Option shape consumed by the time zone autocomplete.
+ *
+ * - `group`: user-visible grouping header.
+ * - `offsetMin`: numeric offset at `now` (used for sorting).
+ * - `searchHay`: normalized text used by search filtering.
+ */
+export type ZoneOption = {
+  tz: string;
+  group: string;
+  label: string;
+  offsetMin: number;
+  searchHay: string;
+};
 
 /**
  * Construct a readable label for a time zone option.
@@ -39,7 +53,7 @@ export function makeZoneLabel(
     browserTimeZone: string;
     siteTimeZone?: string | null;
     toFlagEmoji: (cc: string) => string;
-  }
+  },
 ): string {
   const {
     now,

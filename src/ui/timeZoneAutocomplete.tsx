@@ -4,7 +4,8 @@ import type { UILabels } from "../i18n/uiLabels";
 import { toFlagEmoji } from "../utils/flags";
 import { getZoneLongName, utcOffsetStringForZone } from "../utils/datetime";
 import { normalizeForSearch } from "../utils/search";
-import type { ZoneOption } from "../types/ZoneOption";
+
+import type { ZoneOption } from "../utils/zoneOptions.ts";
 
 /**
  * Factory that returns an MUI Autocomplete `renderOption` implementation

@@ -66,15 +66,15 @@ const UILABELS_BY_COUNTRY: Record<string, UILabels> = {
 /**
  * Return localized UI labels for the given user-preferred locale.
  *
- * @param userPreferredLocale - BCP47 locale tag (e.g., `it-IT`)
+ * @param userPreferredLocale - Two-letter ISO country code, like `en` or `it`
  * @returns Translated labels, defaulting to English if unknown
  * @example
  * ```ts
- * getTimezoneLabels('it-IT');
+ * getUiLabels('it');
  * // { suggested: 'Suggeriti', browser: 'Il tuo browser', ... }
  * ```
  */
-export function getTimezoneLabels(
+export function getUiLabels(
   userPreferredLocale: string | undefined
 ): UILabels {
   const key = (userPreferredLocale || "en").split("-")[0].toLowerCase();
