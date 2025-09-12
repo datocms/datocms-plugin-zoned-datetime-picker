@@ -3,7 +3,7 @@
   "description": "Zoned DateTime Picker is a DatoCMS plugin that stores datetime timestamps with time zone information. Outputs a JSON with ISO8601 and IXDTF strings, the IANA time zone string, UTC offset, and more.",
   "homepage": "https://github.com/arcataroger/datocms-plugin-zoned-datetime-picker",
   "private": false,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "author": "Roger Tuan (DatoCMS) <r.tuan@datocms.com>",
   "type": "module",
   "keywords": [
@@ -18,7 +18,7 @@
     "iso-8601"
   ],
   "datoCmsPlugin": {
-    "title": "Zoned DateTime Picker 0.1.3 (Beta)",
+    "title": "Zoned DateTime Picker",
     "coverImage": "docs/cover-1200x800.png",
     "previewImage": "docs/preview.mp4",
     "entryPoint": "dist/index.html",

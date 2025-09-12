@@ -69,8 +69,8 @@ The plugin supports localized datetime entry and time zone names in the followin
 
 ## Changelog
 
-- 0.1.3 - Minor bug fixes
-- 0.1.2 - Initial beta release
+- 0.1.4 - Minor bug fixes
+- 0.1.2 - Initial release
 
 ## Attributions
 
