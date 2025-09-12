@@ -27,6 +27,15 @@ Once you select a date, time, and time zone, the plugin stores an object like th
   zoned_datetime_ixdtf: "1996-12-19T16:39:57-08:00[America/Los_Angeles]", // For future use with Temporal API; see RFC 9557
 }
 ```
+## How to use
+This is a field editor that can override any JSON field in your project.
+
+- Install the plugin to your project
+- In your schema, navigate to the JSON field you wish to edit
+- Go to its "Presentation" tab
+- Under the "Field editor" section, choose Zoned DateTime Picker
+- Save the field
+- Return to content editing. The plugin should replace the raw JSON field.
 
 ## Why would I use this? Why not use the built-in date & time field?
 
