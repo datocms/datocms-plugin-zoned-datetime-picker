@@ -3,7 +3,7 @@
  * to map time zone -> ISO 3166-1 alpha-2 country code.
  */
 
-import zoneTabRaw from "../i18n/zone.tab?raw";
+import zoneTabRaw from "./zone.tab?raw";
 
 /**
  * Load and parse the bundled `src/i18n/zone.tab` file into a map of
