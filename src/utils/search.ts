@@ -3,11 +3,15 @@
  */
 
 /**
- * Normalizes a string for forgiving search.
- * Removes accents, collapses non-alphanumerics to spaces, lowercases.
+ * Normalize a string for forgiving search: remove accents, collapse
+ * non-alphanumerics to spaces, lowercase and trim.
  *
- * Example
- *   normalizeForSearch('São-Paulo / GMT+03') // => 'sao paulo gmt 03'
+ * @param s - Input string
+ * @returns Normalized string for search
+ * @example
+ * ```ts
+ * normalizeForSearch('São-Paulo / GMT+03'); // 'sao paulo gmt 03'
+ * ```
  */
 export function normalizeForSearch(s: string): string {
   try {
@@ -23,10 +27,14 @@ export function normalizeForSearch(s: string): string {
 }
 
 /**
- * Builds a normalized haystack from multiple parts.
+ * Build a normalized haystack string from multiple parts.
  *
- * Example
- *   makeSearchHaystack('Europe/Rome', 'UTC+2, Central European Summer Time')
+ * @param parts - One or more strings to merge and normalize
+ * @returns Searchable haystack
+ * @example
+ * ```ts
+ * makeSearchHaystack('Europe/Rome', 'UTC+2, Central European Summer Time');
+ * ```
  */
 export function makeSearchHaystack(...parts: string[]): string {
   return normalizeForSearch(parts.filter(Boolean).join(' '));

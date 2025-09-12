@@ -1,6 +1,6 @@
 # Zoned DateTime Picker
 
-This is a [DatoCMS](https://www.datocms.com/) field editor plugin for storing zoned datetime information in a JSON field. It provides a GUI for picking a date, time, and IANA timezone, then stores a JSON object that includes an [ISO 8601](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString) datetime string, a [RFC 9557/IXDTF](https://datatracker.ietf.org/doc/rfc9557/) *zoned* datetime string, a UNIX timestamp, and other helpful fields.
+This is a [DatoCMS](https://www.datocms.com/) field editor plugin for storing zoned datetime information in a JSON field. It provides a GUI for picking a date, time, and IANA timezone, then stores a JSON object that includes an [ISO 8601](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString) datetime string, a [RFC 9557/IXDTF](https://datatracker.ietf.org/doc/rfc9557/) _zoned_ datetime string, a UNIX timestamp, and other helpful fields.
 
 ## Screenshots
 
@@ -11,19 +11,20 @@ Time zone picker (uses [IANA TZ strings](https://data.iana.org/time-zones/tzdb/z
 ![img.png](docs/time-zone-picker.png)
 
 ## JSON Shape
-Once you select a date, time, and time zone, the plugin stores an object like this: 
+
+Once you select a date, time, and time zone, the plugin stores an object like this:
 
 ```json5
 {
-  "datetime_iso8601": "1996-12-19T16:39:57-08:00", // ISO8601 string
-  "zone": "America/Los_Angeles", // IANA TZ identifier
-  "offset": "-08:00", // Offset from UTC, same as ISO8601
-  "date": "1996-12-19", // ISO date
-  "time_24hr": "16:39:57", // 24-hour time
-  "time_12hr": "04:39:57", // 12-hour time
-  "am_pm": "pm", // AM/PM for 12-hour time
-  "timestamp_epoch_seconds": "851042397", // Unix epoch timestamp
-  "zoned_datetime_ixdtf": "1996-12-19T16:39:57-08:00[America/Los_Angeles]" // For future use with Temporal API; see RFC 9557
+  datetime_iso8601: "1996-12-19T16:39:57-08:00", // ISO8601 string
+  zone: "America/Los_Angeles", // IANA TZ identifier
+  offset: "-08:00", // Offset from UTC, same as ISO8601
+  date: "1996-12-19", // ISO date
+  time_24hr: "16:39:57", // 24-hour time
+  time_12hr: "04:39:57", // 12-hour time
+  am_pm: "pm", // AM/PM for 12-hour time
+  timestamp_epoch_seconds: "851042397", // Unix epoch timestamp
+  zoned_datetime_ixdtf: "1996-12-19T16:39:57-08:00[America/Los_Angeles]", // For future use with Temporal API; see RFC 9557
 }
 ```
 
@@ -43,9 +44,11 @@ The plugin does two things to address this situation:
 2. It adds an explicit IANA time zone string like `America/Los_Angeles`. Your frontend can then use that time zone to ensure proper display via [`Intl.DateTimeFormat()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat) or a helper library like [Luxon](https://moment.github.io/luxon/#/).
 
 ## Supported localizations
+
 ![img.png](docs/localizations.png)
 
 The plugin supports localized datetime entry and time zone names in the following languages (same as in DatoCMS itself):
+
 - English (en)
 - Italian (it)
 - German (de)
@@ -56,10 +59,11 @@ The plugin supports localized datetime entry and time zone names in the followin
 - Portuguese (pt)
 
 ## Attributions
+
 This plugin was made with:
 
 - [MUI-X](https://mui.com/x/react-date-pickers/date-time-picker/) React UI components
 - [Luxon](https://moment.github.io/luxon/#/) DateTime library
 - [IANA Time Zone Database](https://www.iana.org/time-zones)
 - [OpenAI Codex](https://openai.com/codex/)
-- Love ❤️ and coffee ☕️
+- Coffee, pasta, and a lil' bit of love

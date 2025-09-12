@@ -11,12 +11,15 @@
  */
 
 /**
- * Returns the list of IANA time zones supported by the current runtime.
+ * Return the list of IANA time zones supported by the current runtime.
  * Falls back to an empty array if not available.
  *
- * Example
- *   const zones = getSupportedTimeZones();
- *   zones.includes('Europe/Rome'); // => boolean
+ * @returns Read-only array of IANA zone IDs
+ * @example
+ * ```ts
+ * const zones = getSupportedTimeZones();
+ * zones.includes('Europe/Rome'); // boolean
+ * ```
  */
 export function getSupportedTimeZones(): readonly string[] {
   const anyIntl = Intl as typeof Intl & {
@@ -33,8 +36,15 @@ export function getSupportedTimeZones(): readonly string[] {
 }
 
 /**
- * Returns a top-level grouping label for an IANA time zone.
- * Examples: 'Europe/Rome' -> 'Europe', 'UTC' -> 'UTC'.
+ * Return a top-level grouping label for an IANA time zone.
+ * Examples: `Europe/Rome` -> `Europe`, `Etc/GMT` -> `Etc`.
+ *
+ * @param tz - IANA time zone identifier
+ * @returns Group name used for UI grouping
+ * @example
+ * ```ts
+ * groupForTimeZone('Europe/Rome'); // 'Europe'
+ * ```
  */
 export function groupForTimeZone(tz: string): string {
   if (tz === "UTC" || tz === "GMT" || tz.startsWith("Etc/")) return "Etc";

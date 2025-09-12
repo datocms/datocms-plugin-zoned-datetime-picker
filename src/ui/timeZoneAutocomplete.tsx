@@ -4,8 +4,22 @@ import type { UILabels } from "../i18n/uiLabels";
 import { toFlagEmoji } from "../utils/flags";
 import { getZoneLongName, utcOffsetStringForZone } from "../utils/datetime";
 import { normalizeForSearch } from "../utils/search";
-import type { ZoneOption } from "../types/timezone";
+import type { ZoneOption } from "../types/ZoneOption";
 
+/**
+ * Factory that returns an MUI Autocomplete `renderOption` implementation
+ * for time zone options with flags, offset and localized long name.
+ *
+ * Splitting into a factory captures static data (labels, locale, maps) once.
+ *
+ * @param cfg - Static context for rendering (labels, zones, maps, locale)
+ * @returns A function suitable for `renderOption` in MUI Autocomplete
+ * @example
+ * ```tsx
+ * const renderOption = renderZoneOptionFactory({ labels, browserTimeZone, siteTimeZone, zoneToCountry, now, locale });
+ * <Autocomplete renderOption={renderOption} ... />
+ * ```
+ */
 export function renderZoneOptionFactory(cfg: {
   labels: UILabels;
   browserTimeZone: string;
@@ -52,6 +66,18 @@ export function renderZoneOptionFactory(cfg: {
   };
 }
 
+/**
+ * Filter options by user input using a forgiving, token-based search.
+ * Matches tokens against a normalized haystack precomputed on each option.
+ *
+ * @param opts - All options
+ * @param inputValue - User input text
+ * @returns Filtered options
+ * @example
+ * ```ts
+ * filterZoneOptions(options, 'rome utc+2');
+ * ```
+ */
 export function filterZoneOptions(
   opts: ZoneOption[],
   inputValue: string
@@ -64,6 +90,14 @@ export function filterZoneOptions(
   return opts.filter((o) => tokens.every((t) => o.searchHay.includes(t)));
 }
 
+/**
+ * MUI `filterOptions` adapter that forwards to `filterZoneOptions`.
+ * Keeps the filtering logic framework-agnostic and easily testable.
+ *
+ * @param opts - All options
+ * @param state - MUI-provided state with `inputValue`
+ * @returns Filtered options for MUI
+ */
 export function filterZoneOptionsMUI(
   opts: ZoneOption[],
   state: { inputValue: string }

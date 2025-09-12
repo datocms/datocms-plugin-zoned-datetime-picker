@@ -7,7 +7,7 @@ import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { TextField, Autocomplete, Stack } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import { getTimezoneLabels } from "../i18n/uiLabels";
-import { loadZoneToCountryMap } from "../utils/zoneTab";
+import { parseZones } from "../i18n/parseZones";
 import { toFlagEmoji } from "../utils/flags";
 import {
   parseDatoValue,
@@ -24,13 +24,12 @@ import {
   filterZoneOptionsMUI,
   renderZoneOptionFactory,
 } from "../ui/timeZoneAutocomplete";
-import type { ZoneOption } from "../types/timezone";
+import type { ZoneOption } from "../types/ZoneOption";
 
 /**
  * ZonedDateTime field editor
  *
- * Stores/loads Internet Extended Date/Time Format (IXDTF, RFC 9557), e.g.:
- *   2025-09-08T15:30:00+02:00[Europe/Rome]
+ * Persists a JSON payload that includes timestamps and zone information.
  *
  * How it works
  * - State keeps the local wall-clock date-time (no offset) and the IANA zone.
@@ -44,7 +43,7 @@ import type { ZoneOption } from "../types/timezone";
  *   and hover states.
  */
 
-export const ZonedDateTimeField = ({
+export const ZonedDateTimePicker = ({
   ctx,
 }: {
   ctx: RenderFieldExtensionCtx;
@@ -76,7 +75,7 @@ export const ZonedDateTimeField = ({
     [zonedDateTime]
   );
 
-  // Persist JSON payload to DatoCMS when it changes (JSON-only field)
+  // Persist JSON payload to DatoCMS when it changes
   useEffect(() => {
     setFieldValue(fieldPath, datoPayload);
   }, [datoPayload, setFieldValue, fieldPath]);
@@ -88,7 +87,7 @@ export const ZonedDateTimeField = ({
     [primaryColor, accentColor, lightColor, darkColor]
   );
 
-  // Time zone dropdown data
+  // Parse time zone dropdown data from raw data file
   const timeZones = useMemo(() => getSupportedTimeZones(), []);
   const now = useMemo(() => new Date(), []);
 
@@ -97,19 +96,14 @@ export const ZonedDateTimeField = ({
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     []
   );
+
   // Localized UI labels
   const labels = getTimezoneLabels(userPreferredLocale);
   const suggestedLabel = labels.suggested;
-  const suggestedTimeZones = useMemo(() => {
-    // Fixed order: UTC, This project (site), Your browser
-    const arr = ["UTC", userPreferredTimeZone, browserTimeZone].filter(
-      (v): v is string => !!v
-    );
-    return Array.from(new Set(arr));
-  }, [browserTimeZone, userPreferredTimeZone]);
+  const suggestedTimeZones = ["UTC", userPreferredTimeZone, browserTimeZone];
 
   // Pre-load TZ -> country code map from IANA zone.tab
-  const zoneToCountry = useMemo(() => loadZoneToCountryMap(), []);
+  const zoneToCountry = useMemo(() => parseZones(), []);
   // Option labels and filtering are handled by the helper modules
 
   const options: ZoneOption[] = useMemo(
@@ -182,6 +176,7 @@ export const ZonedDateTimeField = ({
     setZonedDateTime((prev) => ({ ...prev, timeZone: newValue }));
   };
 
+  // The time zone dropdown should be disabled until a datetime is picked
   const isTimeZonePickerDisabled = disabled || !zonedDateTime?.dateTime?.length;
 
   return (
@@ -192,12 +187,12 @@ export const ZonedDateTimeField = ({
           adapterLocale={userPreferredLocale}
         >
           <Stack direction="row" spacing={1}>
+            {/* Datetime picker*/}
             <DateTimePicker
               value={selectedDateTime}
               onChange={handleDateChange}
               disabled={disabled}
-              timezone={zonedDateTime.timeZone ?? "system"}
-              reduceAnimations
+              timezone={zonedDateTime.timeZone ?? "system"} // Sync with selected timezone if possible
               slotProps={{
                 textField: {
                   id: "zdt-picker",
@@ -211,6 +206,8 @@ export const ZonedDateTimeField = ({
               viewRenderers={CLOCK_VIEW_RENDERERS}
               sx={{ width: 310 }}
             />
+
+            {/* Time zone picker*/}
             <Autocomplete
               id="zdt-tz"
               options={options}
@@ -237,8 +234,8 @@ export const ZonedDateTimeField = ({
                   sx: { maxHeight: 200, overflowY: "auto" },
                 },
                 popper: {
-                  disablePortal: true,
-                  keepMounted: true,
+                  disablePortal: true, // Keep the DOM node as a real child
+                  keepMounted: true, // Preserve DOM for sizing and to avoid expensive re-mounts
                   modifiers: [
                     {
                       // Workaround for the popper node overflowing the iframe and causing a huge expansion
@@ -253,7 +250,6 @@ export const ZonedDateTimeField = ({
                   ],
                 },
               }}
-              // Styling for options handled via theme override
               renderInput={(params) => (
                 <TextField {...params} size="small" label={labels.timeZone} />
               )}

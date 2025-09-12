@@ -1,13 +1,24 @@
-/**
- * Date/time helpers built on Luxon to minimize custom logic and surface area.
- */
 import { DateTime } from "luxon";
 
 /**
- * Returns a localized long time zone name (e.g., 'Pacific Time') for a zone.
+ * Date/time helpers built on Luxon to keep logic minimal and predictable.
  *
- * Example
- *   getZoneLongName('en-US', 'America/Los_Angeles', new Date()) // => 'Pacific Time'
+ * These utilities avoid reinventing conversion rules and delegate timezone math
+ * to Luxon and the runtime `Intl` implementation whenever possible.
+ */
+
+/**
+ * Resolve a localized, human-friendly long time zone name for `timeZone` at `at`.
+ * Falls back to `null` if the runtime cannot provide a name.
+ *
+ * @param locale - BCP47 locale tag (e.g., `en-US`) or `undefined` for default
+ * @param timeZone - IANA time zone identifier (e.g., `America/Los_Angeles`)
+ * @param at - Instant to evaluate (affects historical/DST names)
+ * @returns Localized long name, or `null` if not available
+ * @example
+ * ```ts
+ * getZoneLongName('en-US', 'America/Los_Angeles', new Date()); // 'Pacific Time'
+ * ```
  */
 export function getZoneLongName(
   locale: string | undefined,
@@ -27,10 +38,16 @@ export function getZoneLongName(
 }
 
 /**
- * Formats the UTC offset for a zone at a given instant as 'UTC+H[:MM]'.
+ * Format the UTC offset for `timeZone` at `at` as `UTC±H[:MM]`.
+ * Uses Luxon to account for DST and historical offset changes.
  *
- * Example
- *   utcOffsetStringForZone('Europe/Rome', new Date()) // => 'UTC+2'
+ * @param timeZone - IANA time zone identifier
+ * @param at - Instant to evaluate
+ * @returns Offset string such as `UTC+2` or `UTC-03:30`
+ * @example
+ * ```ts
+ * utcOffsetStringForZone('Europe/Rome', new Date()); // 'UTC+2'
+ * ```
  */
 export function utcOffsetStringForZone(timeZone: string, at: Date): string {
   const dt = DateTime.fromJSDate(at, { zone: timeZone });
@@ -43,7 +60,11 @@ export function utcOffsetStringForZone(timeZone: string, at: Date): string {
   return `UTC${sign}${hours}${mm}`;
 }
 
-/** Parse and format IXDTF (RFC 9557) values. */
+/**
+ * Internal shape used by the editor component: a wall-clock local datetime and
+ * its IANA time zone. `dateTime` is stored without numeric offset (HH:mm:ss is
+ * always present) so DST is re-evaluated when formatting.
+ */
 export type ZonedValue = { dateTime?: string | null; timeZone?: string | null };
 
 export type DatoZonedOutput = {
@@ -58,19 +79,33 @@ export type DatoZonedOutput = {
   timestamp: string; // epoch seconds as string
 };
 
-/** Ensure seconds are present (we always store HH:mm:ss for clarity). */
+/**
+ * Ensure seconds are present in a local datetime string.
+ * We always store HH:mm:ss for clarity and consistency.
+ *
+ * @param dt - Local datetime string like `YYYY-MM-DDTHH:mm` or `YYYY-MM-DDTHH:mm:ss`
+ * @returns The same datetime with seconds ensured
+ * @example
+ * ```ts
+ * ensureSeconds('2025-01-01T10:00'); // '2025-01-01T10:00:00'
+ * ```
+ */
 export function ensureSeconds(dt: string): string {
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dt)) return dt + ":00";
   return dt;
 }
 
 /**
- * Parses an IXDTF string to a { dateTime, timeZone } structure.
- * Accepts values like '2025-09-08T15:30:00+02:00[Europe/Rome]'.
+ * Parse an IXDTF string like `2025-09-08T15:30:00+02:00[Europe/Rome]` into
+ * `{ dateTime, timeZone }` where `dateTime` is the wall time without offset.
  *
- * Example
- *   parseIxdtf('2025-01-01T10:00:00+01:00[Europe/Rome]')
- *   // => { dateTime: '2025-01-01T10:00:00', timeZone: 'Europe/Rome' }
+ * @param input - IXDTF string
+ * @returns Parsed `{ dateTime, timeZone }`, or `{null, null}` if invalid
+ * @example
+ * ```ts
+ * parseIxdtf('2025-01-01T10:00:00+01:00[Europe/Rome]');
+ * // { dateTime: '2025-01-01T10:00:00', timeZone: 'Europe/Rome' }
+ * ```
  */
 export function parseIxdtf(input: string): ZonedValue {
   const trimmed = (input ?? "").trim();
@@ -90,17 +125,18 @@ export function parseIxdtf(input: string): ZonedValue {
 }
 
 /**
- * Formats a { dateTime, timeZone } structure to an IXDTF string for storage.
+ * Parse any stored Dato value (legacy IXDTF string or current JSON object)
+ * back into `{ dateTime, timeZone }`.
  *
- * Example
- *   formatToIxdtf({ dateTime: '2025-01-01T10:00:00', timeZone: 'Europe/Rome' })
- *   // => '2025-01-01T10:00:00+01:00[Europe/Rome]'
- */
-// Deprecated: legacy single-string storage has been removed.
-
-/**
- * Parses any stored Dato value (old IXDTF string or new JSON object)
- * back into our internal { dateTime, timeZone } structure.
+ * Accepts several legacy shapes and prefers explicit fields.
+ *
+ * @param input - Unknown value from the field
+ * @returns `{ dateTime, timeZone }` with `null` fields if parsing fails
+ * @example
+ * ```ts
+ * parseDatoValue({ zone: 'Europe/Rome', dateTime: '2025-01-01T10:00:00+01:00' });
+ * // { dateTime: '2025-01-01T10:00:00', timeZone: 'Europe/Rome' }
+ * ```
  */
 export function parseDatoValue(input: unknown): ZonedValue {
   if (input && typeof input === "object") {
@@ -137,8 +173,31 @@ export function parseDatoValue(input: unknown): ZonedValue {
 }
 
 /**
- * Builds the new JSON payload expected by Dato consumers from
- * a { dateTime, timeZone } structure. Returns null if invalid/incomplete.
+ * Build the JSON payload expected by Dato consumers from `{ dateTime, timeZone }`.
+ * Returns an empty object if invalid or incomplete.
+ *
+ * Notes
+ * - Returns `{}` when incomplete/invalid; callers store the JSON string, so
+ *   `{}` represents "no value" in the JSON field.
+ * - Offsets are derived by Luxon given the wall time and IANA zone.
+ *
+ * @param value - `{ dateTime, timeZone }` with wall time and IANA zone
+ * @returns A structured payload with IXDTF, ISO with offset, and derived fields, or `{}`
+ * @example
+ * ```ts
+ * buildDatoOutput({ dateTime: '2025-01-01T10:00:00', timeZone: 'Europe/Rome' });
+ * // {
+ * //   zonedDateTime: '2025-01-01T10:00:00+01:00[Europe/Rome]',
+ * //   dateTime: '2025-01-01T10:00:00+01:00',
+ * //   zone: 'Europe/Rome',
+ * //   offset: '+01:00',
+ * //   date: '2025-01-01',
+ * //   time_24hr: '10:00:00',
+ * //   time_12hr: '10:00:00',
+ * //   ampm: 'am',
+ * //   timestamp: '1735725600'
+ * // }
+ * ```
  */
 export function buildDatoOutput(value: ZonedValue): DatoZonedOutput | {} {
   const { dateTime, timeZone } = value;
